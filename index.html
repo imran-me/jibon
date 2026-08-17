@@ -81,7 +81,7 @@ main{max-width:1400px;margin:0 auto;padding:24px}
 .case .t{font-size:13.5px;font-weight:540}
 .case .m{font-size:11px;color:var(--dim);display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
 .meter{display:block;height:4px;background:#eef2f0;border-radius:99px;overflow:hidden}
-.case .meter{display:inline-block;vertical-align:middle}
+.case .meter{display:block;margin-left:auto}
 .meter i{display:block;height:100%;border-radius:99px;transition:width .5s}
 
 /* timeline */
@@ -132,7 +132,7 @@ main{max-width:1400px;margin:0 auto;padding:24px}
 .hero{margin-top:16px;padding:18px 20px;border-radius:9px;background:var(--ink);color:#fff;font-size:17px;font-weight:520;letter-spacing:-.015em;line-height:1.4}
 .hero span{display:block;font-size:12px;color:#9fb5ad;margin-top:6px;font-weight:400;letter-spacing:0}
 .legend{font-size:10.5px;color:var(--dim);display:flex;gap:9px;align-items:center}
-.legend .dot{margin-right:3px}
+.legend .dot{display:inline-block;margin-right:3px;vertical-align:-1px}
 .quote{padding:12px;background:var(--tint);border-left:3px solid var(--green);
   border-radius:7px;font-size:13px;line-height:1.65}
 .warnbox{padding:12px;border:1px dashed var(--amber);background:rgba(178,106,0,.06);
@@ -535,7 +535,7 @@ function clock(ts){var d=new Date(ts);
 function pct(x){return Math.round(x*100)+'%'}
 function priCls(p){return p==='P1'?'p1':p==='P2'?'p2':'p3'}
 function prepCls(p){return p==='Team ready'||p==='Received'?'ok':p==='Preparing'?'p2':'nu'}
-function gps(c){var g=GEO[c.district]||GEO.Dhaka,n=parseInt(String(c.id).slice(4),10)||0;
+function gps(c){var g=geoOf(c),n=parseInt(String(c.id).slice(4),10)||0;
   return (g[0]+((n%7)-3)*0.004).toFixed(4)+'\u00b0 N, '+(g[1]+((n%5)-2)*0.004).toFixed(4)+'\u00b0 E'}
 function priColor(p){return p==='P1'?'var(--red)':p==='P2'?'var(--amber)':'var(--blue)'}
 function active(c){return c.stage!=='Closed'}
@@ -575,10 +575,10 @@ function kpis(){
     ['critical','Critical (P1)',act.filter(function(c){return c.pri==='P1'}).length,'Immediate threat to life, still open'],
     ['transit','Units in transit',act.filter(function(c){return c.stage==='Transporting'}).length,'Ambulances carrying a patient now'],
     ['dispatch','Time to dispatch',mins(med(J.map(function(c){return c.dec}))),'Median from call raised to ambulance assigned'],
-    ['hosp','Hospitals preparing',new Set(act.filter(function(c){return c.mode==='jibon'}).map(function(c){return c.dest})).size,'Facilities readying resources for an inbound case'],
+    ['hosp','Hospitals preparing',new Set(act.filter(function(c){return c.mode==='jibon'&&c.prep!=='Not notified'}).map(function(c){return c.dest})).size,'Facilities readying resources for an inbound case'],
     ['lead','Pre-arrival lead',mins(avg(J.map(function(c){return c.lead}))),'How long the hospital had the case before arrival'],
     ['kit','Equipment matched',pct(J.filter(function(c){return c.kit}).length/Math.max(1,J.length)),'Ambulances loaded for the actual emergency'],
-    ['docs','Clinicians connected',new Set(J.filter(function(c){return c.doc}).map(function(c){return c.doc})).size,'Doctors who joined a live emergency session']
+    ['docs','Clinicians connected',act.filter(function(c){return c.mode==='jibon'&&c.doc}).length,'Doctors in an open emergency session right now']
   ];
 }
 
@@ -700,17 +700,19 @@ var PHIDX={};PHASES.forEach(function(p,i){PHIDX[p.k]=i});
 
 var SIM={on:false,id:null,cap:'',i:0,n:0,timers:[],steps:null,playing:false,speed:1,phase:'detect'};
 
-function runSim(type){
+function simPri(type){return (type==='cardiac'||type==='unconscious'||type==='trauma'||type==='bleeding')?'P1':'P2'}
+function runSim(type,pri){
   stopSim();
   seq++;
+  type=TYPES[type]?type:'unconscious';pri=pri||simPri(type);
   var pl = type==='trauma'?['Padma Bridge approach','Munshiganj']:['Kuakata beach road','Patuakhali'];
   var r=routeFor(pl[1],type);
-  var c={id:'EMG-'+seq,type:type,pri:'P1',stage:'Reported',mode:'jibon',place:pl[0],district:pl[1],
+  var c={id:'EMG-'+seq,type:type,pri:pri,stage:'Reported',mode:'jibon',place:pl[0],district:pl[1],
     ts:Date.now(),dec:null,resp:null,scene:null,transit:null,total:null,kit:true,conf:type==='trauma'?0.88:0.91,
     patients:type==='trauma'?3:1,unit:null,doc:null,vol:null,dest:r.dest,relays:r.relays,lead:0,
-    say:SAYS[type][0],prep:'Not notified',sim:true,
-    tl:[{t:Date.now(),l:'Emergency reported',d:'Voice channel opened — Kuakata',a:'citizen'}],
-    facts:[['Consciousness',type==='trauma'?'Responds to voice':'Unresponsive','rep'],
+    say:(SAYS[type]||SAYS.other)[0],prep:'Not notified',sim:true,
+    tl:[{t:Date.now(),l:'Emergency reported',d:'Voice channel opened — '+pl[0],a:'citizen'}],
+    facts:[['Consciousness',(type==='unconscious'||type==='cardiac')?'Unresponsive':'Responds to voice','rep'],
            ['Breathing','Unknown — caller cannot confirm','rep']],
     missing:['Is the chest rising?','Was there a fall or a blow to the head?','Any known heart condition?']};
   CASES.unshift(c);
@@ -719,10 +721,11 @@ function runSim(type){
   var S=[
     [0.3,'AI parsing the caller\'s speech',function(){
       log(c,'Voice channel active','Continuous session — the caller never repeats themselves','sys')}],
-    [1.2,'Classified '+TYPES[type].n+' · P1',function(){
+    [1.2,'Classified '+TYPES[type].n+' · '+pri,function(){
       c.stage='Classified';
-      log(c,'AI classified as critical — '+TYPES[type].n,
-        'Unresponsive with unconfirmed breathing is treated as P1 until breathing is established','ai')}],
+      log(c,'AI classified — '+TYPES[type].n+' · '+pri,
+        pri==='P1'?((type==='unconscious'||type==='cardiac')?'Unresponsive with unconfirmed breathing is treated as P1 until breathing is established':'Immediate threat to life until a clinician confirms otherwise')
+        :'Serious and time-sensitive — escalates automatically if breathing or consciousness worsens','ai')}],
     [2.2,'Destination chosen by capability; relay identified',function(){
       log(c,'Destination set — '+HOSP[c.dest].n,
         c.relays.length?'Relay prepared at '+c.relays.map(function(h){return HOSP[h].c}).join(' and '):'Direct transfer','ai')}],
@@ -751,10 +754,10 @@ function runSim(type){
     [11.6,'Patient loaded, transport begun',function(){
       c.stage='Transporting';c.scene=7;c.prep='Preparing';
       log(c,'Departed for '+HOSP[c.dest].n,'Receiving team notified and preparing','amb')}],
-    [13,'Relay hospital standing by at the roadside',function(){
+    [13,c.relays.length?'Relay hospital standing by at the roadside':'Receiving hospital confirming resources',function(){
       if(c.relays.length) log(c,HOSP[c.relays[0]].c+' team ready at the roadside',
         'Blood, fluids and a clinician prepared to join the vehicle','hos')}],
-    [14.4,'Relay rendezvous — care level raised in transit',function(){
+    [14.4,c.relays.length?'Relay rendezvous — care level raised in transit':'Crew handover brief sent ahead',function(){
       if(c.relays.length) log(c,'Rendezvous at '+HOSP[c.relays[0]].c,
         'Supplies transferred and a clinician joined the ambulance — no admission, journey continued','hos')}],
     [15.8,'Receiving hospital team assembled',function(){
@@ -852,10 +855,10 @@ function vCitizen(){
       '<div class="sub">Bangla, English or a mix — say it the way you would to a neighbour. '+
       'You do not have to structure it.</div>'+
       '<p class="consent">Microphone and camera switch on only when you tap them and off when you let go. Speech is transcribed on this device; nothing is stored on a server.</p>'+
-      '<button class="mic btn gho" style="width:100%;height:46px;margin-bottom:11px" onclick="mic(this)">🎤 Hold to speak</button>'+
+      '<button class="mic btn gho" onpointerdown="micStart(this)" onpointerup="micStop()" onpointerleave="micStop()" oncontextmenu="return false" '+
+      'style="touch-action:none;user-select:none;width:100%;height:46px;margin-bottom:11px">🎤 Hold to speak</button>'+
       '<textarea id="say" rows="3" style="width:100%;padding:11px;border:1px solid var(--line2);'+
-      'border-radius:8px;font:inherit;resize:vertical" placeholder="Uni pore gechen, sara dicchen na…">'+
-      (t?esc(SAYS[t][0]):'')+'</textarea>'+
+      'border-radius:8px;font:inherit;resize:vertical" oninput="SAY=this.value" placeholder="'+(t?esc((SAYS[t]||SAYS.other)[0]):'Uni pore gechen, sara dicchen na…')+'">'+esc(SAY)+'</textarea>'+
       '<div class="row" style="margin-top:11px">'+
       '<label class="btn gho" style="cursor:pointer">📷 Add scene photo'+
       '<input type="file" accept="image/*" style="display:none" onchange="addPhoto(this)"></label>'+
@@ -879,7 +882,7 @@ function vCitizen(){
         '<div class="br">'+
         '<span class="k">Type</span><span class="v">'+esc(T.n)+'<span class="tag t-inf">AI inferred</span></span>'+
         '<span class="k">Priority</span><span class="v"><span class="pill '+
-          priCls(AIRES?AIRES.priority:'P1')+'">'+(AIRES?AIRES.priority:'P1')+' Critical</span>'+
+          priCls(AIRES?AIRES.priority:simPri(t))+'">'+(AIRES?AIRES.priority:simPri(t))+' '+((AIRES?AIRES.priority:simPri(t))==='P1'?'Critical':'Urgent')+'</span>'+
           '<span class="tag t-inf">AI inferred</span></span>'+
         (AIRES?'<span class="k">Consciousness</span><span class="v">'+esc(AIRES.consciousness)+
           '<span class="tag t-inf">AI inferred</span></span>'+
@@ -930,14 +933,15 @@ function pickType(t){selType=t;AIRES=null;draw()}
 /* Live classification result from Gemini, rendered field by field with the
    provenance of each. Null until the model has actually been asked. */
 var AIRES=null;
+var SAY='';
 
 function submitReport(){
-  var txt=($('#say')&&$('#say').value||'').trim();
+  var txt=SAY.trim();
   if(!selType&&!txt){toast('Tap an emergency type or describe what is happening.');return}
 
   if(!hasKey()){
     // No key: go straight to the scripted scenario on the local classifier.
-    runSim(selType==='trauma'?'trauma':(selType==='cardiac'||selType==='unconscious')?selType:'unconscious');
+    runSim(selType||'unconscious');
     return;
   }
 
@@ -956,14 +960,15 @@ function submitReport(){
   .catch(function(e){
     toast(e.message+' — falling back to the local classifier.');
     if(b){b.textContent='Get help now →';b.disabled=false}
-    runSim(selType==='trauma'?'trauma':(selType==='cardiac'||selType==='unconscious')?selType:'unconscious');
+    setTimeout(function(){runSim(selType||'unconscious')},1500);
   });
 }
 
 /* Start the scenario carrying Gemini's real output into the case record, so the
    brief every responder reads is the model's actual structured result. */
 function runSimFrom(r,txt){
-  runSim(r.type==='trauma'?'trauma':(r.type==='cardiac'||r.type==='unconscious')?r.type:'unconscious');
+  if(!TYPES[r.type]) r.type=selType||'other';
+  runSim(r.type,r.priority);
   var c=CASES[0];if(!c)return;
   c.pri=r.priority||c.pri;
   c.conf=r.confidence||c.conf;
@@ -1534,13 +1539,13 @@ function drill(k){
   else if(k==='critical'){list=act.filter(function(c){return c.pri==='P1'});title='Critical cases (P1)'}
   else if(k==='transit'){list=act.filter(function(c){return c.stage==='Transporting'});title='Units in transit'}
   else if(k==='hosp'){
-    var by={};act.filter(function(c){return c.mode==='jibon'}).forEach(function(c){(by[c.dest]=by[c.dest]||[]).push(c)});
+    var by={};act.filter(function(c){return c.mode==='jibon'&&c.prep!=='Not notified'}).forEach(function(c){(by[c.dest]=by[c.dest]||[]).push(c)});
     body='<div class="stats">'+st('Facilities',Object.keys(by).length)+
       st('Inbound cases',act.filter(function(c){return c.mode==='jibon'}).length)+'</div>'+
       Object.keys(by).map(function(h){return '<button class="node" onclick="openHosp(\''+h+'\')">'+
         '<span class="ic">🏥</span><span style="flex:1"><span class="nm">'+esc(HOSP[h].n)+'</span>'+
         '<span class="ns">'+esc(HOSP[h].c)+' · '+by[h].length+' inbound</span></span>'+
-        '<span class="pill ok">Preparing</span></button>'}).join('');
+        (function(){var best=by[h].map(function(c){return c.prep}).sort(function(a,b){var o={'Team ready':0,'Received':1,'Preparing':2,'Notified':3};return (o[a]||9)-(o[b]||9)})[0];return '<span class="pill '+prepCls(best)+'">'+esc(best)+'</span>'})()+'</button>'}).join('');
     sheet('Hospitals preparing','Live readiness',body);return}
   else if(k==='lead'){
     body='<div class="stats">'+st('Mean lead',mins(avg(J.map(function(c){return c.lead}))))+
@@ -1570,7 +1575,7 @@ function drill(k){
       'happens in under a second, so the decision is made while the caller is still talking.</div>';
     sheet('Time to dispatch','Call raised → ambulance assigned',body);return}
   else if(k==='docs'){
-    list=J.filter(function(c){return c.doc});title='Clinicians connected'}
+    list=act.filter(function(c){return c.mode==='jibon'&&c.doc});title='Clinicians connected'}
   else {list=act;title='Cases'}
 
   body='<div class="stats">'+st('Cases',list.length)+
@@ -1621,17 +1626,23 @@ function openHosp(id){
 }
 
 /* "Why this hospital?" — names the nearer hospital it rejected, and why. */
+/* The facility a distance-only dispatcher would have picked. */
+function nearerRejected(c){
+  var south=['Patuakhali','Barguna','Barishal','Bhola'].indexOf(c.district)>=0;
+  var k=c.district==='Patuakhali'?'kuakata-uhc':south?(c.dest==='barishal-smch'?'patuakhali-mch':'barishal-smch')
+    :(c.dest==='dhaka-dmch'?'dhaka-nitor':'dhaka-dmch');
+  return HOSP[k]}
 function whyHosp(id){
   var c=CASES.filter(function(x){return x.id===id})[0];if(!c)return;
   var T=TYPES[c.type],D=HOSP[c.dest];
-  var near=c.district==='Patuakhali'?HOSP['kuakata-uhc']:HOSP['patuakhali-mch'];
+  var near=nearerRejected(c),lacks=D.cap.filter(function(x){return near.cap.indexOf(x)<0});
   sheet('Why '+D.c+'?','Routing rationale · '+c.id,
     '<div class="quote"><b>'+esc(D.n)+'</b> was chosen because it holds every capability this case needs — '+
     esc(D.cap.slice(0,4).join(', '))+' — at '+(c.transit||52)+' minutes\' travel.</div>'+
     '<div><div class="eyebrow" style="margin-bottom:9px">Nearer option rejected</div>'+
     '<div class="node" data-k="org"><span class="ic">✕</span><span style="flex:1">'+
     '<span class="nm">'+esc(near.n)+'</span>'+
-    '<span class="ns">Closer, but lacks '+esc(T.dept.split(' / ')[0])+' capability</span></span></div>'+
+    '<span class="ns">Closer, but lacks '+esc(lacks.length?lacks.slice(0,3).join(', '):T.dept.split(' / ')[0])+'</span></span></div>'+
     '<p style="font-size:12.5px;color:var(--mid);margin-top:9px;line-height:1.65">Arriving somewhere sooner that '+
     'cannot perform the definitive treatment does not save time — it spends it. A nearer hospital without the '+
     'theatre, the specialist or the blood is not a destination, it is a delay.</p></div>'+
@@ -1659,8 +1670,8 @@ function geminiWhy(id){
     emergency:TYPES[c.type].n,clinical_window_min:TYPES[c.type].w,
     chosen:{name:HOSP[c.dest].n,city:HOSP[c.dest].c,tier:HOSP[c.dest].t,
       capabilities:HOSP[c.dest].cap,travel_min:c.transit||52},
-    nearer_rejected:{name:HOSP[c.district==='Patuakhali'?'kuakata-uhc':'patuakhali-mch'].n,
-      capabilities:HOSP[c.district==='Patuakhali'?'kuakata-uhc':'patuakhali-mch'].cap,
+    nearer_rejected:{name:nearerRejected(c).n,
+      capabilities:nearerRejected(c).cap,
       lacks:TYPES[c.type].dept},
     relays:(c.relays||[]).map(function(r){return {name:HOSP[r].n,city:HOSP[r].c,capabilities:HOSP[r].cap}})};
   gem([{text:'Routing payload:\n'+JSON.stringify(payload,null,1)}],
@@ -1738,14 +1749,18 @@ function gem(parts,sys,schema,maxTok){
   /* Gemini 3.x flash models think before answering and the thoughts count
      against maxOutputTokens, so a tiny budget yields an empty reply. Floor it. */
   var body={contents:[{role:'user',parts:parts}],
-    generationConfig:{temperature:schema?0.15:0.5,maxOutputTokens:Math.max(maxTok||1200,512)}};
+    generationConfig:{temperature:schema?0.15:0.5,maxOutputTokens:Math.max(maxTok||1200,512),
+      thinkingConfig:{thinkingBudget:/pro/.test(MODEL)?128:0}}};
+  var ac=window.AbortController?new AbortController():null;
+  var to=ac?setTimeout(function(){ac.abort()},20000):null;
   if(sys) body.systemInstruction={parts:[{text:sys}]};
   if(schema){body.generationConfig.responseMimeType='application/json';
     body.generationConfig.responseSchema=schema}
   return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+MODEL+
       ':generateContent?key='+encodeURIComponent(KEY),
-    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-  .then(function(r){
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ac?ac.signal:undefined})
+  .catch(function(e){if(to)clearTimeout(to);throw new Error(e.name==='AbortError'?'Gemini did not answer within 20 s.':'Network error reaching Gemini.')})
+  .then(function(r){if(to)clearTimeout(to);
     if(!r.ok) return r.json().catch(function(){return{}}).then(function(j){
       var m={400:'Request rejected — check the model name.',
         401:'Key not accepted. Generate a fresh one in AI Studio.',
@@ -1771,20 +1786,21 @@ function gem(parts,sys,schema,maxTok){
 
 /* ── Voice input (free, no key — Web Speech API) ───────────────────────── */
 var REC=null;
-function mic(btn){
+function micStart(btn){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){toast('Speech input needs Chrome or Edge. You can type instead.');return}
-  if(REC){REC.stop();return}
-  var ta=$('#say'),base=ta?ta.value:'';
+  if(REC)return;
+  var base=SAY;
   REC=new SR();REC.lang='bn-BD';REC.continuous=true;REC.interimResults=true;
-  btn.textContent='⏹ Listening… tap to stop';btn.style.background='var(--red)';btn.style.color='#fff';
+  btn.textContent='● Listening… release to stop';btn.style.background='var(--red)';btn.style.color='#fff';btn.style.borderColor='var(--red)';
   REC.onresult=function(e){var s='';
-    for(var i=e.resultIndex;i<e.results.length;i++) s+=e.results[i][0].transcript;
-    if(ta) ta.value=(base+' '+s).trim()};
+    for(var i=0;i<e.results.length;i++) s+=e.results[i][0].transcript;
+    SAY=(base+' '+s).trim();var ta=$('#say');if(ta) ta.value=SAY};
   REC.onerror=function(e){toast(e.error==='not-allowed'?'Microphone permission denied.':'Speech input failed.')};
-  REC.onend=function(){REC=null;btn.textContent='🎤 Hold to speak';btn.style.background='';btn.style.color=''};
+  REC.onend=function(){REC=null;var b=$('.mic');if(b){b.textContent='🎤 Hold to speak';b.style.background='';b.style.color='';b.style.borderColor=''}};
   REC.start();
 }
+function micStop(){if(REC){try{REC.stop()}catch(e){}}}
 
 /* ── Photo → Gemini multimodal ─────────────────────────────────────────── */
 var PHOTO=null;
@@ -1803,15 +1819,17 @@ var GEO={'Kuakata':[21.82,90.12],'Kalapara':[21.98,90.23],'Patuakhali':[22.36,90
   'Barguna':[22.16,90.13],'Barishal':[22.70,90.35],'Bhola':[22.69,90.65],
   'Munshiganj':[23.42,90.27],'Dhaka':[23.73,90.40],'Faridpur':[23.61,89.84],'Gopalganj':[23.01,89.83]};
 
+function geoOf(c){var k=Object.keys(GEO).filter(function(n){return (c.place||'').indexOf(n)>=0})[0];
+  return GEO[k]||GEO[c.district]||GEO.Dhaka}
 function xy(lat,lng){return [((lng-89.6)/1.5)*300+20, 260-((lat-21.5)/2.6)*240]}
 
 function mapSVG(c){
-  var o=GEO[c.district]||GEO['Dhaka'], d=GEO[HOSP[c.dest].c]||GEO['Dhaka'];
+  var o=geoOf(c), d=GEO[HOSP[c.dest].c]||GEO['Dhaka'];
   var pts=[['scene',o,c.place,'var(--red)']];
   (c.relays||[]).forEach(function(r){pts.push(['relay',GEO[HOSP[r].c],HOSP[r].c,'var(--amber)'])});
   pts.push(['dest',d,HOSP[c.dest].c,'var(--green)']);
   var path=pts.map(function(p,i){var q=xy(p[1][0],p[1][1]);return (i?'L':'M')+q[0]+' '+q[1]}).join(' ');
-  return '<svg viewBox="0 0 340 290" style="width:100%;height:auto;background:var(--tint);border-radius:9px">'+
+  return '<svg viewBox="0 0 340 290" style="width:100%;height:auto;max-height:380px;background:var(--tint);border-radius:9px">'+
     Object.keys(GEO).map(function(k){var q=xy(GEO[k][0],GEO[k][1]);
       return '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="2.5" fill="#cfdad6"/>'+
       '<text x="'+(q[0]+6)+'" y="'+(q[1]+3)+'" font-size="7.5" fill="#9aa8a3">'+esc(k)+'</text>'}).join('')+
@@ -1828,7 +1846,7 @@ function mapSVG(c){
    a scenario is driving it. Same projection as the route map. */
 function netMap(){
   var act=CASES.filter(active),seen={},cities={};
-  var dots=act.map(function(c){var g=GEO[c.district]||GEO.Dhaka,q=xy(g[0],g[1]);
+  var dots=act.map(function(c){var g=geoOf(c),q=xy(g[0],g[1]);
     var n=seen[c.district]=(seen[c.district]||0)+1,a=n*2.1,r=n>1?7+(n%3)*3:0;
     var x=(q[0]+Math.cos(a)*r).toFixed(1),y=(q[1]+Math.sin(a)*r).toFixed(1),col=priColor(c.pri);
     return '<g style="cursor:pointer" onclick="openCase(\''+c.id+'\')"><title>'+esc(c.id+' \u00b7 '+TYPES[c.type].n+' \u00b7 '+c.stage)+'</title>'+
