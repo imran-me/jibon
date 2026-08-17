@@ -433,7 +433,8 @@ function toast(m){var t=$('#tst');t.innerHTML='<div class="toast">'+esc(m)+'</di
 /* ── Navigation ────────────────────────────────────────────────────────── */
 var VIEWS=[
   ['command','Command Center'],['citizen','Report Emergency'],['patient','Patient / Doctor'],
-  ['ambulance','Ambulance'],['hospital','Hospital Board'],['cases','All Cases'],['analytics','Impact']
+  ['ambulance','Ambulance'],['hospital','Hospital Board'],['cases','All Cases'],
+  ['analytics','Impact'],['ai','Gemini AI']
 ];
 var view='command', selCase=null, selType=null;
 
@@ -445,7 +446,7 @@ function go(v){view=v;nav();draw();window.scrollTo(0,0)}
 
 function draw(){
   var f={command:vCommand,citizen:vCitizen,patient:vPatient,ambulance:vAmb,
-         hospital:vHosp,cases:vCases,analytics:vAnalytics}[view];
+         hospital:vHosp,cases:vCases,analytics:vAnalytics,ai:vAI}[view];
   $('#app').innerHTML=f();
 }
 
@@ -652,25 +653,58 @@ function vCitizen(){
         return '<button class="et" data-on="'+(t===k?1:0)+'" onclick="pickType(\''+k+'\')">'+
         '<span class="ei">'+TYPES[k].i+'</span><span class="en">'+esc(TYPES[k].n)+'</span>'+
         '<span class="ew">'+TYPES[k].w+' min window</span></button>'}).join('')+'</div></div>'+
-      '<div class="card"><h3>Or describe it</h3>'+
-      '<div class="sub">Bangla, English or a mix — say it the way you would to a neighbour.</div>'+
+      '<div class="card"><h3>Or just speak</h3>'+
+      '<div class="sub">Bangla, English or a mix — say it the way you would to a neighbour. '+
+      'You do not have to structure it.</div>'+
+      '<button class="mic btn gho" style="width:100%;height:46px;margin-bottom:11px" onclick="mic(this)">🎤 Hold to speak</button>'+
       '<textarea id="say" rows="3" style="width:100%;padding:11px;border:1px solid var(--line2);'+
       'border-radius:8px;font:inherit;resize:vertical" placeholder="Uni pore gechen, sara dicchen na…">'+
       (t?esc(SAYS[t][0]):'')+'</textarea>'+
+      '<div class="row" style="margin-top:11px">'+
+      '<label class="btn gho" style="cursor:pointer">📷 Add scene photo'+
+      '<input type="file" accept="image/*" style="display:none" onchange="addPhoto(this)"></label>'+
+      (PHOTO?'<span class="row" style="gap:6px"><img src="'+PHOTO.url+'" style="width:38px;height:38px;'+
+        'object-fit:cover;border-radius:6px;border:1px solid var(--line2)">'+
+        '<button class="btn gho sm" onclick="dropPhoto()">Remove</button></span>':'')+
+      '</div>'+
       '<div class="row" style="margin-top:12px">'+
-      '<button class="btn pri" onclick="submitReport()">🎤 Get help now</button>'+
-      '<span style="font-size:11.5px;color:var(--dim)">Voice + camera stay open for the whole emergency</span></div></div>'+
+      '<button class="btn pri" id="gob" onclick="submitReport()">Get help now →</button>'+
+      '<span style="font-size:11.5px;color:var(--dim)">'+
+      (hasKey()?'Gemini connected — live classification':'Offline classifier — add a key in Gemini AI tab')+
+      '</span></div></div>'+
     '</div>'+
     '<div class="card">'+
-      (t? '<h3>AI assessment</h3><div class="sub">Structured in under a second — every field labelled by how it is known</div>'+
+      (t? '<h3>AI assessment</h3><div class="sub">'+
+        (AIRES?'Returned by Gemini as structured JSON — every field labelled by how it is known'
+              :'Structured in under a second — every field labelled by how it is known')+'</div>'+
+        (AIRES?'<div class="row wrap" style="margin-bottom:12px">'+
+          '<span class="pill ok">✨ Live Gemini</span>'+
+          '<span class="pill nu">'+esc(MODEL)+'</span></div>':'')+
         '<div class="br">'+
         '<span class="k">Type</span><span class="v">'+esc(T.n)+'<span class="tag t-inf">AI inferred</span></span>'+
-        '<span class="k">Priority</span><span class="v"><span class="pill p1">P1 Critical</span><span class="tag t-inf">AI inferred</span></span>'+
+        '<span class="k">Priority</span><span class="v"><span class="pill '+
+          priCls(AIRES?AIRES.priority:'P1')+'">'+(AIRES?AIRES.priority:'P1')+' Critical</span>'+
+          '<span class="tag t-inf">AI inferred</span></span>'+
+        (AIRES?'<span class="k">Consciousness</span><span class="v">'+esc(AIRES.consciousness)+
+          '<span class="tag t-inf">AI inferred</span></span>'+
+          '<span class="k">Breathing</span><span class="v">'+esc(AIRES.breathing)+
+          '<span class="tag t-inf">AI inferred</span></span>'+
+          '<span class="k">Patients</span><span class="v">'+(AIRES.patients||1)+'</span>':'')+
         '<span class="k">Clinical window</span><span class="v">'+T.w+' minutes</span>'+
         '<span class="k">Receiving</span><span class="v">'+esc(T.dept)+'</span>'+
         '<span class="k">Ambulance tier</span><span class="v">'+esc(T.cap)+'</span>'+
-        '<span class="k">Confidence</span><span class="v">89%</span>'+
+        '<span class="k">Confidence</span><span class="v">'+(AIRES?Math.round(AIRES.confidence*100):89)+'%</span>'+
         '</div>'+
+        (AIRES&&AIRES.summary?'<div class="quote" style="margin-top:13px"><b>'+esc(AIRES.summary)+'</b>'+
+          (AIRES.reasoning?'<div style="font-size:12px;color:var(--dim);margin-top:6px">'+esc(AIRES.reasoning)+'</div>':'')+
+          '</div>':'')+
+        (AIRES&&AIRES.observations&&AIRES.observations.length?
+          '<div style="margin-top:13px"><div class="eyebrow" style="margin-bottom:6px">Observations</div>'+
+          AIRES.observations.map(function(o){return '<div style="font-size:12.5px;color:var(--mid);padding:3px 0">— '+esc(o)+'</div>'}).join('')+
+          '</div>':'')+
+        (AIRES&&AIRES.missing_information&&AIRES.missing_information.length?
+          '<div class="warnbox" style="margin-top:13px"><div class="eyebrow" style="color:var(--amber)">The operator will ask</div><ul>'+
+          AIRES.missing_information.slice(0,4).map(function(m){return '<li>'+esc(m)+'</li>'}).join('')+'</ul></div>':'')+
         '<div style="margin-top:16px"><div class="eyebrow" style="margin-bottom:8px">Equipment to load</div>'+
         (KIT[t]||KIT.other).map(function(k){return '<div class="row" style="padding:4px 0;font-size:12.5px">'+
           '<span class="dot" style="color:'+(k[1]?'var(--red)':'var(--dim)')+'"></span>'+
@@ -695,10 +729,58 @@ function vCitizen(){
     '</div>'+
   '</div>';
 }
-function pickType(t){selType=t;draw()}
+function pickType(t){selType=t;AIRES=null;draw()}
+
+/* Live classification result from Gemini, rendered field by field with the
+   provenance of each. Null until the model has actually been asked. */
+var AIRES=null;
+
 function submitReport(){
-  if(!selType){toast('Choose what is happening first.');return}
-  runSim(selType==='trauma'?'trauma':selType==='cardiac'||selType==='unconscious'?selType:'unconscious');
+  var txt=($('#say')&&$('#say').value||'').trim();
+  if(!selType&&!txt){toast('Tap an emergency type or describe what is happening.');return}
+
+  if(!hasKey()){
+    // No key: go straight to the scripted scenario on the local classifier.
+    runSim(selType==='trauma'?'trauma':(selType==='cardiac'||selType==='unconscious')?selType:'unconscious');
+    return;
+  }
+
+  var b=$('#gob');if(b){b.textContent='Analysing…';b.disabled=true}
+  var parts=[{text:(selType?'The caller tapped the "'+TYPES[selType].n+'" icon. Strong signal, but override it if the description clearly indicates otherwise.\n\n':'')+
+    (PHOTO?'A scene photograph is attached. Report only what is genuinely visible.\n\n':'')+
+    (txt?'Caller\'s report:\n"""\n'+txt+'\n"""':'The caller has not spoken — classify from the icon and photo alone, and mark confidence accordingly.')}];
+  if(PHOTO) parts.push({inlineData:{mimeType:PHOTO.mime,data:PHOTO.data}});
+
+  gem(parts,TRIAGE_SYS,TRIAGE_SCHEMA,1200)
+  .then(function(r){
+    AIRES=r;selType=r.type;draw();
+    toast('Gemini classified this as '+r.priority+' — '+TYPES[r.type].n+' ('+Math.round(r.confidence*100)+'% confidence)');
+    setTimeout(function(){runSimFrom(r,txt)},1400);
+  })
+  .catch(function(e){
+    toast(e.message+' — falling back to the local classifier.');
+    if(b){b.textContent='Get help now →';b.disabled=false}
+    runSim(selType==='trauma'?'trauma':(selType==='cardiac'||selType==='unconscious')?selType:'unconscious');
+  });
+}
+
+/* Start the scenario carrying Gemini's real output into the case record, so the
+   brief every responder reads is the model's actual structured result. */
+function runSimFrom(r,txt){
+  runSim(r.type==='trauma'?'trauma':(r.type==='cardiac'||r.type==='unconscious')?r.type:'unconscious');
+  var c=CASES[0];if(!c)return;
+  c.pri=r.priority||c.pri;
+  c.conf=r.confidence||c.conf;
+  c.patients=r.patients||c.patients;
+  if(txt) c.say=txt;
+  c.aiSummary=r.summary;
+  c.facts=[['Consciousness',r.consciousness||'unknown','inf'],
+           ['Breathing',r.breathing||'unknown','inf']];
+  if(r.image_findings) c.facts.push(['Visual assessment',r.image_findings,'obs']);
+  (r.observations||[]).slice(0,3).forEach(function(o){c.facts.push(['Observation',o,'inf'])});
+  c.missing=r.missing_information||c.missing;
+  c.tl[0].d='Classified by Gemini — '+(r.reasoning||'');
+  refresh();
 }
 
 /* ── View: Patient / Doctor ────────────────────────────────────────────── */
@@ -795,7 +877,8 @@ function vAmb(){
       '<p style="font-size:11px;color:var(--dim);margin-top:9px">Proposed for this classification. '+
       'The crew confirms — the platform does not decide.</p></div></div>'+
       '<div class="card"><h3>Route plan</h3>'+
-      '<div class="sub">Destination chosen by capability, not by distance</div>'+routeHTML(c)+'</div>'+
+      '<div class="sub">Destination chosen by capability, not by distance</div>'+
+      mapSVG(c)+'<div style="margin-top:13px"></div>'+routeHTML(c)+'</div>'+
     '</div>'+
     '<div class="card"><h3>Patient brief</h3><div class="sub">Read on assignment — the crew is never briefed at the door</div>'+
     briefRows(c)+'<div class="quote" style="margin-top:14px">'+esc(c.say)+'</div></div>'+
@@ -1077,10 +1160,272 @@ function whyHosp(id){
     'flatlining until arrival — and it needs no new hospital, ambulance or doctor.</p></div>':'')+
     '<div><div class="eyebrow" style="margin-bottom:6px">Clinical window</div>'+
     '<p style="font-size:12.5px;color:var(--mid)">'+esc(T.n)+' has a '+T.w+'-minute window. '+
-    'Every routing decision is measured against it.</p></div>');
+    'Every routing decision is measured against it.</p></div>'+
+    '<div id="aiwhy">'+(hasKey()?
+      '<button class="btn gho" onclick="geminiWhy(\''+c.id+'\')">✨ Ask Gemini to explain this routing</button>':
+      '<p style="font-size:11.5px;color:var(--dim)">Add a Gemini key in the Gemini AI tab for a model-written rationale.</p>')+
+    '</div>');
+}
+
+/* The same rationale, written by the model from the structured routing payload. */
+function geminiWhy(id){
+  var c=CASES.filter(function(x){return x.id===id})[0];if(!c)return;
+  var box=$('#aiwhy');if(box) box.innerHTML='<p style="font-size:12.5px;color:var(--dim)">Gemini is writing the rationale…</p>';
+  var payload={question:'Why was this hospital selected?',
+    emergency:TYPES[c.type].n,clinical_window_min:TYPES[c.type].w,
+    chosen:{name:HOSP[c.dest].n,city:HOSP[c.dest].c,tier:HOSP[c.dest].t,
+      capabilities:HOSP[c.dest].cap,travel_min:c.transit||52},
+    nearer_rejected:{name:HOSP[c.district==='Patuakhali'?'kuakata-uhc':'patuakhali-mch'].n,
+      capabilities:HOSP[c.district==='Patuakhali'?'kuakata-uhc':'patuakhali-mch'].cap,
+      lacks:TYPES[c.type].dept},
+    relays:(c.relays||[]).map(function(r){return {name:HOSP[r].n,city:HOSP[r].c,capabilities:HOSP[r].cap}})};
+  gem([{text:'Routing payload:\n'+JSON.stringify(payload,null,1)}],
+    'You explain one JIBON routing recommendation to an ambulance crew who asked why. '+
+    'In at most four sentences: state the decisive factor first, cite the concrete figures from the payload, '+
+    'explain why the nearer option was rejected, and say what would change the answer. '+
+    'Cite only figures present in the payload. No preamble, no markdown, no headings. '+
+    'Write as a colleague explaining reasoning, not a system justifying itself. The crew can override at any time.',
+    null,400)
+  .then(function(t){if(box) box.innerHTML='<div class="quote"><div class="eyebrow" style="margin-bottom:6px">'+
+    'Gemini rationale</div>'+esc(t)+'</div>'})
+  .catch(function(e){if(box) box.innerHTML='<p style="font-size:12.5px;color:var(--red)">'+esc(e.message)+'</p>'});
 }
 
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSheet()});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GEMINI
+   Called straight from the browser with a bring-your-own key. There is no
+   server in this build, so there is nowhere a shared secret could safely live;
+   each operator supplies their own key from Google AI Studio and it stays in
+   their own localStorage. Every AI surface degrades to a local fallback, so the
+   venue wifi can never take the demo down.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+var KEY='';
+try{KEY=localStorage.getItem('jibon.key')||''}catch(e){}
+var MODEL='gemini-2.5-flash';
+try{MODEL=localStorage.getItem('jibon.model')||'gemini-2.5-flash'}catch(e){}
+
+function hasKey(){return !!(KEY&&KEY.trim())}
+function saveKey(k){KEY=k.trim();try{localStorage.setItem('jibon.key',KEY)}catch(e){}}
+
+/* Structured triage schema. Forcing JSON out of the model is what makes this an
+   intake system rather than a chatbot — the output drops straight into a case. */
+var TRIAGE_SCHEMA={type:'object',properties:{
+  type:{type:'string',enum:Object.keys(TYPES)},
+  priority:{type:'string',enum:['P1','P2','P3']},
+  summary:{type:'string'},
+  reasoning:{type:'string'},
+  confidence:{type:'number'},
+  consciousness:{type:'string',enum:['alert','voice','pain','unresponsive','unknown']},
+  breathing:{type:'string',enum:['normal','laboured','agonal','absent','unknown']},
+  patients:{type:'integer'},
+  observations:{type:'array',items:{type:'string'}},
+  missing_information:{type:'array',items:{type:'string'}},
+  image_findings:{type:'string'}
+},required:['type','priority','summary','reasoning','confidence','consciousness','breathing','observations','missing_information']};
+
+var TRIAGE_SYS='You are the intake classifier for JIBON, an emergency coordination platform in Bangladesh.\n\n'+
+'A bystander is reporting an emergency. They are frightened, not medically trained, and may speak Bangla, '+
+'English, or a mix ("Banglish"). They will not use clinical vocabulary. Turn what they said — and any photo — '+
+'into a structured emergency profile a dispatcher and clinician can act on immediately.\n\n'+
+'Types: '+Object.keys(TYPES).map(function(k){return k+' ('+TYPES[k].n+', '+TYPES[k].w+' min window)'}).join('; ')+'\n\n'+
+'Priority: P1 = immediate threat to life. P2 = serious, time-sensitive. P3 = needs care, not immediately life-threatening.\n\n'+
+'Rules:\n'+
+'- Absent or gasping breathing, unresponsiveness, uncontrolled bleeding and airway burns are P1 without exception.\n'+
+'- Report consciousness and breathing as "unknown" unless actually established. Unknown is a useful answer; a guess is not.\n'+
+'- If the words and the image disagree, say so in observations and lower your confidence.\n'+
+'- summary is one sentence a dispatcher reads aloud, under 140 characters, neutral English.\n'+
+'- missing_information lists what the dispatcher must still ask, most clinically important first.\n\n'+
+'HARD LIMITS: You are a coordination layer, not a clinician. Never diagnose. Never name or dose a medication. '+
+'Never state a medical condition as fact — describe what was reported, what is visible, what it may indicate. '+
+'Confidence is a genuine calibrated estimate; do not inflate it. Low confidence that triggers human review is a '+
+'correct outcome, not a failure.';
+
+function gem(parts,sys,schema,maxTok){
+  if(!hasKey()) return Promise.reject(new Error('no key'));
+  var body={contents:[{role:'user',parts:parts}],
+    generationConfig:{temperature:schema?0.15:0.5,maxOutputTokens:maxTok||1200}};
+  if(sys) body.systemInstruction={parts:[{text:sys}]};
+  if(schema){body.generationConfig.responseMimeType='application/json';
+    body.generationConfig.responseSchema=schema}
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+MODEL+
+      ':generateContent?key='+encodeURIComponent(KEY),
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(function(r){
+    if(!r.ok) return r.json().catch(function(){return{}}).then(function(j){
+      var m={400:'Request rejected — check the model name.',
+        401:'Key not accepted. Generate a fresh one in AI Studio.',
+        403:'Key cannot reach the Gemini API. Enable the Generative Language API.',
+        404:'Model unavailable to this key. Try gemini-2.5-flash.',
+        429:'Rate limited — wait a moment.',503:'Gemini overloaded.'};
+      throw new Error((j.error&&j.error.message)||m[r.status]||('Request failed ('+r.status+')'))});
+    return r.json()})
+  .then(function(j){
+    var t=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[])
+      .map(function(p){return p.text||''}).join('').trim();
+    if(!t) throw new Error('Empty response from Gemini.');
+    if(!schema) return t;
+    try{return JSON.parse(t.replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,''))}
+    catch(e){var a=t.indexOf('{'),b=t.lastIndexOf('}');
+      if(a>-1&&b>a) return JSON.parse(t.slice(a,b+1));
+      throw new Error('Gemini returned malformed JSON.')}});
+}
+
+/* ── Voice input (free, no key — Web Speech API) ───────────────────────── */
+var REC=null;
+function mic(btn){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Speech input needs Chrome or Edge. You can type instead.');return}
+  if(REC){REC.stop();return}
+  var ta=$('#say'),base=ta?ta.value:'';
+  REC=new SR();REC.lang='bn-BD';REC.continuous=true;REC.interimResults=true;
+  btn.textContent='⏹ Listening… tap to stop';btn.style.background='var(--red)';btn.style.color='#fff';
+  REC.onresult=function(e){var s='';
+    for(var i=e.resultIndex;i<e.results.length;i++) s+=e.results[i][0].transcript;
+    if(ta) ta.value=(base+' '+s).trim()};
+  REC.onerror=function(e){toast(e.error==='not-allowed'?'Microphone permission denied.':'Speech input failed.')};
+  REC.onend=function(){REC=null;btn.textContent='🎤 Hold to speak';btn.style.background='';btn.style.color=''};
+  REC.start();
+}
+
+/* ── Photo → Gemini multimodal ─────────────────────────────────────────── */
+var PHOTO=null;
+function addPhoto(inp){
+  var f=inp.files&&inp.files[0];if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){PHOTO={mime:f.type||'image/jpeg',data:String(r.result).split(',')[1],url:String(r.result)};draw()};
+  r.readAsDataURL(f);
+}
+function dropPhoto(){PHOTO=null;draw()}
+
+/* ── Schematic map ─────────────────────────────────────────────────────────
+   Not a tile map — a schematic. It has to communicate the relay chain at a
+   glance on a projector, which a street map actively works against.          */
+var GEO={'Kuakata':[21.82,90.12],'Kalapara':[21.98,90.23],'Patuakhali':[22.36,90.33],
+  'Barguna':[22.16,90.13],'Barishal':[22.70,90.35],'Bhola':[22.69,90.65],
+  'Munshiganj':[23.42,90.27],'Dhaka':[23.73,90.40],'Faridpur':[23.61,89.84],'Gopalganj':[23.01,89.83]};
+
+function xy(lat,lng){return [((lng-89.6)/1.5)*300+20, 260-((lat-21.5)/2.6)*240]}
+
+function mapSVG(c){
+  var o=GEO[c.district]||GEO['Dhaka'], d=GEO[HOSP[c.dest].c]||GEO['Dhaka'];
+  var pts=[['scene',o,c.place,'var(--red)']];
+  (c.relays||[]).forEach(function(r){pts.push(['relay',GEO[HOSP[r].c],HOSP[r].c,'var(--amber)'])});
+  pts.push(['dest',d,HOSP[c.dest].c,'var(--green)']);
+  var path=pts.map(function(p,i){var q=xy(p[1][0],p[1][1]);return (i?'L':'M')+q[0]+' '+q[1]}).join(' ');
+  return '<svg viewBox="0 0 340 290" style="width:100%;height:auto;background:var(--tint);border-radius:9px">'+
+    Object.keys(GEO).map(function(k){var q=xy(GEO[k][0],GEO[k][1]);
+      return '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="2.5" fill="#cfdad6"/>'+
+      '<text x="'+(q[0]+6)+'" y="'+(q[1]+3)+'" font-size="7.5" fill="#9aa8a3">'+esc(k)+'</text>'}).join('')+
+    '<path d="'+path+'" stroke="var(--green)" stroke-width="2" fill="none" stroke-dasharray="5 4">'+
+    '<animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"/></path>'+
+    pts.map(function(p){var q=xy(p[1][0],p[1][1]);
+      return '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="6" fill="'+p[3]+'"/>'+
+      '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="10" fill="none" stroke="'+p[3]+'" stroke-width="1.2" opacity=".45"/>'+
+      '<text x="'+(q[0]+14)+'" y="'+(q[1]+4)+'" font-size="9.5" font-weight="600" fill="#0d1a16">'+esc(p[2])+'</text>'}).join('')+
+    '</svg>';
+}
+
+/* ── View: AI console ──────────────────────────────────────────────────── */
+var ASK='',ANS='';
+function vAI(){
+  return '<div class="hd"><h1>Gemini Intelligence</h1>'+
+    '<p>Connect a key to run live classification, routing rationale and operational Q&amp;A</p></div>'+
+  '<div class="grid g2">'+
+    '<div style="display:flex;flex-direction:column;gap:14px">'+
+      '<div class="card"><h3>API key</h3>'+
+      '<div class="sub">Free from Google AI Studio. Stored only in this browser, sent only to Google — '+
+      'there is no server in this build for a secret to live on.</div>'+
+      '<div class="row"><input id="k" type="password" value="'+esc(KEY)+'" placeholder="AIza…" '+
+      'style="flex:1;padding:9px 11px;border:1px solid var(--line2);border-radius:8px;font:inherit;font-family:ui-monospace,monospace;font-size:12px">'+
+      '<button class="btn pri" onclick="saveKey($(\'#k\').value);toast(\'Key saved.\');draw()">Save</button>'+
+      '<button class="btn gho" onclick="testKey()">Test</button></div>'+
+      '<div class="row" style="margin-top:11px">'+
+      '<span class="pill '+(hasKey()?'ok':'nu')+'">'+(hasKey()?'✓ Connected':'Not set — running offline')+'</span>'+
+      '<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" '+
+      'style="font-size:12px;color:var(--green);text-decoration:none">Get a free key →</a></div>'+
+      '<div style="margin-top:13px"><div class="eyebrow" style="margin-bottom:6px">Model</div>'+
+      '<select onchange="MODEL=this.value;try{localStorage.setItem(\'jibon.model\',MODEL)}catch(e){};toast(\'Model set to \'+MODEL)" '+
+      'style="width:100%;padding:9px;border:1px solid var(--line2);border-radius:8px;font:inherit">'+
+      ['gemini-2.5-flash','gemini-2.5-pro','gemini-2.5-flash-lite'].map(function(m){
+        return '<option value="'+m+'"'+(MODEL===m?' selected':'')+'>'+m+'</option>'}).join('')+
+      '</select></div></div>'+
+
+      '<div class="card"><h3>Where Gemini is used</h3><div class="sub">Four surfaces, each with an offline fallback</div>'+
+      [['Triage classification','Speech + photo → structured JSON case profile with calibrated confidence'],
+       ['Routing rationale','"Why this hospital?" — explains the capability trade-off in plain language'],
+       ['Operational Q&A','Ask the live case data; answers grounded in computed statistics'],
+       ['Handover briefing','The paragraph read aloud to an ambulance crew over the radio']].map(function(x){
+        return '<div style="padding:9px 0;border-bottom:1px solid var(--line)">'+
+        '<div style="font-size:13px;font-weight:530">'+esc(x[0])+'</div>'+
+        '<div style="font-size:12px;color:var(--dim);margin-top:2px">'+esc(x[1])+'</div></div>'}).join('')+
+      '</div>'+
+    '</div>'+
+
+    '<div class="card"><h3>Ask the live case data</h3>'+
+    '<div class="sub">Grounded on computed statistics — the model receives figures, so it cannot invent a total</div>'+
+    '<div class="row wrap" style="margin-bottom:11px">'+
+    ['Which active case is closest to missing its window?',
+     'Compare coordinated dispatch against conventional handling.',
+     'Where are we losing the most time?',
+     'Draft a Bangla SMS telling Patuakhali to prepare for an inbound trauma case.'].map(function(q){
+      return '<button class="pill nu" style="cursor:pointer;border:1px solid var(--line2)" '+
+      'onclick="ASK=this.textContent;askAI()">'+esc(q)+'</button>'}).join('')+'</div>'+
+    '<textarea id="q" rows="2" placeholder="Ask anything about the board…" '+
+    'style="width:100%;padding:11px;border:1px solid var(--line2);border-radius:8px;font:inherit;resize:vertical">'+esc(ASK)+'</textarea>'+
+    '<button class="btn pri" style="margin-top:10px" onclick="ASK=$(\'#q\').value;askAI()">Ask Gemini</button>'+
+    (ANS?'<div class="quote" style="margin-top:14px;white-space:pre-wrap">'+esc(ANS)+'</div>':
+      '<p style="font-size:12px;color:var(--dim);margin-top:14px">Answers appear here. '+
+      'Without a key the console still runs everything else on local logic.</p>')+
+    '</div>'+
+  '</div>';
+}
+
+function testKey(){
+  saveKey($('#k').value);
+  if(!hasKey()){toast('Enter a key first.');return}
+  toast('Testing…');
+  var t=Date.now();
+  gem([{text:'Reply with the single word: ready'}],null,null,16)
+    .then(function(){toast('Key works — responded in '+(Date.now()-t)+' ms.');draw()})
+    .catch(function(e){toast(e.message)});
+}
+
+/* Evidence packet — pre-computed figures, not raw rows. This is what keeps the
+   model from hallucinating totals: it reasons over arithmetic we did. */
+function evidence(){
+  var J=jib(),B=base(),act=CASES.filter(active);
+  return {window:'30 days',active:act.length,critical_active:act.filter(function(c){return c.pri==='P1'}).length,
+    in_transit:act.filter(function(c){return c.stage==='Transporting'}).length,
+    coordinated:{cases:J.length,median_call_to_dispatch_min:med(J.map(function(c){return c.dec})),
+      median_end_to_end_min:med(J.map(function(c){return c.total})),
+      mean_hospital_lead_min:Math.round(avg(J.map(function(c){return c.lead}))),
+      equipment_match_rate:+(J.filter(function(c){return c.kit}).length/J.length).toFixed(2)},
+    conventional:{cases:B.length,median_call_to_dispatch_min:med(B.map(function(c){return c.dec})),
+      median_end_to_end_min:med(B.map(function(c){return c.total})),mean_hospital_lead_min:0,
+      equipment_match_rate:+(B.filter(function(c){return c.kit}).length/B.length).toFixed(2)},
+    urgent_cases:act.filter(function(c){return c.pri==='P1'}).slice(0,6).map(function(c){
+      return {id:c.id,type:TYPES[c.type].n,place:c.place,stage:c.stage,
+        window_min:TYPES[c.type].w,elapsed_min:Math.round((Date.now()-c.ts)/60000),
+        destination:HOSP[c.dest].n}})};
+}
+
+function askAI(){
+  if(!ASK.trim()){toast('Type a question first.');return}
+  if(!hasKey()){toast('Add a Gemini API key above to use the assistant.');return}
+  ANS='Thinking…';draw();
+  gem([{text:'Evidence packet:\n'+JSON.stringify(evidence())+'\n\nCoordinator asks: '+ASK}],
+    'You are the JIBON operations assistant supporting emergency coordinators in Bangladesh. '+
+    'Ground every claim in the evidence packet and never invent a figure. If the packet cannot answer '+
+    'something, say precisely what data would be needed. Two to four short paragraphs, direct and specific. '+
+    'Never restate the question, never offer further help. You may be asked to draft operational text '+
+    '(a dispatch message, a Bangla SMS) — write it directly usable. You are a coordination layer, not a '+
+    'clinician: never diagnose, never name a medication.',null,900)
+  .then(function(t){ANS=t;draw()})
+  .catch(function(e){ANS='';toast(e.message);draw()});
+}
 
 /* ── Boot ──────────────────────────────────────────────────────────────── */
 nav();draw();
