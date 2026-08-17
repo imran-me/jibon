@@ -1035,12 +1035,21 @@ function vAnalytics(){
 }
 
 /* ── Drill-downs: no number is a dead end ──────────────────────────────── */
-function sheet(title,eyebrow,body){
-  $('#ov').innerHTML='<div class="scrim" onclick="closeSheet()"></div><div class="sheet">'+
-    '<header><div><div class="eyebrow">'+esc(eyebrow)+'</div>'+
+/* keep=true updates an already-open sheet in place (no re-mount, so the
+   slide-in animation does not replay and the scroll position survives). */
+function sheet(title,eyebrow,body,keep){
+  var head='<div><div class="eyebrow">'+esc(eyebrow)+'</div>'+
     '<h2 style="margin-top:4px">'+esc(title)+'</h2></div>'+
-    '<button class="x" onclick="closeSheet()">×</button></header>'+
-    '<div class="body">'+body+'</div></div>';
+    '<button class="x" onclick="closeSheet()">×</button>';
+  var ex=keep&&$('#ov .sheet');
+  if(ex){
+    var bd=ex.querySelector('.body'),top=bd.scrollTop;
+    ex.querySelector('header').innerHTML=head;
+    bd.innerHTML=body;bd.scrollTop=top;
+    return;
+  }
+  $('#ov').innerHTML='<div class="scrim" onclick="closeSheet()"></div><div class="sheet">'+
+    '<header>'+head+'</header><div class="body">'+body+'</div></div>';
 }
 function closeSheet(){$('#ov').innerHTML='';selCase=null}
 
@@ -1116,7 +1125,7 @@ function openCase(id,keep){
     (PREP[c.type]||PREP.other).map(function(p){return '<div class="row" style="padding:4px 0;font-size:13px">'+
       '<span class="dot" style="color:'+(p[1]?'var(--red)':'var(--dim)')+'"></span>'+
       '<span style="color:var(--mid)">'+esc(p[0])+'</span></div>'}).join('')+'</div>'+
-    '<div><div class="eyebrow" style="margin-bottom:9px">Timeline</div>'+tlHTML(c)+'</div>');
+    '<div><div class="eyebrow" style="margin-bottom:9px">Timeline</div>'+tlHTML(c)+'</div>',keep);
 }
 
 function openHosp(id){
