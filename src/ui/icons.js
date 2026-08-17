@@ -73,7 +73,10 @@ export function icon(name, { size = 16, stroke = 1.5, fill = 'none', className =
     focusable: 'false',
   });
 
-  for (const d of spec.split('M').filter(Boolean).map((segment) => `M${segment}`)) {
+  // Split before each absolute moveto, keeping the command itself. A plain
+  // split('M') would strip the letter and corrupt paths that open with a
+  // relative "m" instead.
+  for (const d of spec.split(/(?=M)/).filter((segment) => segment.trim())) {
     svg.appendChild(h('path', { d }));
   }
   return svg;
