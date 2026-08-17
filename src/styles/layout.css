@@ -18,7 +18,7 @@
   flex-direction: column;
   gap: var(--s-5);
   padding: var(--s-5) var(--s-4);
-  background: var(--bg-elev);
+  background: var(--surface-2);
   border-right: 1px solid var(--line);
   z-index: 40;
 }

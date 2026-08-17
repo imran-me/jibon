@@ -1,63 +1,66 @@
 /*
   Design tokens.
   ---------------------------------------------------------------------------
-  The whole console is monochrome plus one brass accent. Status colours are
-  deliberately desaturated so a dashboard full of them still reads calm — they
-  appear as small dots and thin bars, never as large fills.
+  Light, white-ground console built on the Bangladesh flag palette:
+  bottle green #006A4E as the brand accent, flag red #F42A41 as the critical
+  signal. That pairing is not decorative here — red is reserved exclusively for
+  P1, life-threatening cases, so the flag's red carries real operational meaning.
 
-  Every colour is defined once on :root (dark is the default look) and then
-  re-stated in full for light. No component may hardcode a hex value.
+  Colour is used only where it communicates: priority, readiness, provenance.
+  Everything else is white, ink and hairline grey, so a dense board stays calm.
+
+  Light is the default and is defined on bare :root. Dark is an opt-in override.
 */
 
 :root {
   /* ── Surfaces ─────────────────────────────────────────────────────────── */
-  --bg:            #08090a;
-  --bg-elev:       #0d0f11;
-  --surface:       #111316;
-  --surface-2:     #16191d;
-  --surface-3:     #1c2026;
-  --scrim:         rgba(4, 5, 6, 0.66);
+  --bg:            #ffffff;
+  --bg-elev:       #ffffff;
+  --surface:       #ffffff;
+  --surface-2:     #f7f9f8;
+  --surface-3:     #eef2f0;
+  --scrim:         rgba(11, 32, 26, 0.34);
 
   /* ── Hairlines ────────────────────────────────────────────────────────── */
-  --line:          rgba(255, 255, 255, 0.075);
-  --line-mid:      rgba(255, 255, 255, 0.12);
-  --line-strong:   rgba(255, 255, 255, 0.2);
+  --line:          rgba(0, 61, 45, 0.10);
+  --line-mid:      rgba(0, 61, 45, 0.17);
+  --line-strong:   rgba(0, 61, 45, 0.30);
 
   /* ── Type ─────────────────────────────────────────────────────────────── */
-  --text:          #eceef0;
-  --text-mid:      #9aa1a9;
-  --text-dim:      #6b727a;
-  --text-faint:    #4c5259;
+  --text:          #0d1a16;
+  --text-mid:      #46564f;
+  --text-dim:      #6b7b74;
+  --text-faint:    #96a29c;
 
-  /* ── Brand ────────────────────────────────────────────────────────────── */
-  --accent:        #c2a87c;
-  --accent-soft:   rgba(194, 168, 124, 0.14);
-  --accent-line:   rgba(194, 168, 124, 0.42);
-  --on-accent:     #14120d;
+  /* ── Brand: Bangladesh bottle green ───────────────────────────────────── */
+  --accent:        #006a4e;
+  --accent-soft:   rgba(0, 106, 78, 0.09);
+  --accent-line:   rgba(0, 106, 78, 0.45);
+  --on-accent:     #ffffff;
 
-  /* ── Status. Used for dots, bars and thin strokes only. ───────────────── */
-  --pos:           #6e9c82;
-  --warn:          #bd8b40;
-  --neg:           #b4655c;
-  --info:          #6c8ba6;
-  --pos-soft:      rgba(110, 156, 130, 0.15);
-  --warn-soft:     rgba(189, 139, 64, 0.15);
-  --neg-soft:      rgba(180, 101, 92, 0.15);
-  --info-soft:     rgba(108, 139, 166, 0.15);
+  /* ── Status. Red is flag red and belongs to critical alone. ───────────── */
+  --neg:           #f42a41;
+  --warn:          #b26a00;
+  --pos:           #006a4e;
+  --info:          #2a6b8f;
+  --neg-soft:      rgba(244, 42, 65, 0.10);
+  --warn-soft:     rgba(178, 106, 0, 0.11);
+  --pos-soft:      rgba(0, 106, 78, 0.10);
+  --info-soft:     rgba(42, 107, 143, 0.10);
 
   /*
-    Categorical series for charts. Ordered so the first four stay separable
-    for the most common deuteranopia/protanopia cases — they differ in
-    lightness as well as hue, which is what actually does the work.
+    Categorical series. Built outward from the two flag colours, then separated
+    by lightness as well as hue so the set survives common colour-vision
+    deficiencies and greyscale printing.
   */
-  --series-1: #c2a87c;
-  --series-2: #6c8ba6;
-  --series-3: #8a7f9e;
-  --series-4: #6e9c82;
-  --series-5: #b4655c;
-  --series-6: #9a8f6a;
-  --series-7: #5f7f86;
-  --series-8: #8c7466;
+  --series-1: #006a4e;
+  --series-2: #2a6b8f;
+  --series-3: #6b5b95;
+  --series-4: #4a8f6b;
+  --series-5: #f42a41;
+  --series-6: #b26a00;
+  --series-7: #3f7d78;
+  --series-8: #8a6d5c;
 
   /* ── Geometry ─────────────────────────────────────────────────────────── */
   --r-sm: 6px;
@@ -93,10 +96,10 @@
   --t-xs:      0.75rem;
   --t-micro:   0.6875rem;
 
-  /* ── Depth ────────────────────────────────────────────────────────────── */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
-  --shadow-3: 0 24px 64px -16px rgba(0, 0, 0, 0.72);
+  /* ── Depth. Soft and green-tinted, never grey mud. ────────────────────── */
+  --shadow-1: 0 1px 2px rgba(0, 61, 45, 0.06);
+  --shadow-2: 0 8px 24px -10px rgba(0, 61, 45, 0.16);
+  --shadow-3: 0 24px 64px -20px rgba(0, 61, 45, 0.22);
 
   /* ── Motion ───────────────────────────────────────────────────────────── */
   --ease: cubic-bezier(0.2, 0, 0, 1);
@@ -105,47 +108,48 @@
   --dur-3: 280ms;
 }
 
-[data-theme="light"] {
-  --bg:            #f7f6f3;
-  --bg-elev:       #ffffff;
-  --surface:       #ffffff;
-  --surface-2:     #faf9f7;
-  --surface-3:     #f1efeb;
-  --scrim:         rgba(28, 26, 22, 0.28);
+/* Opt-in dark, for a dim operations room. Same semantics, inverted ground. */
+[data-theme="dark"] {
+  --bg:            #071410;
+  --bg-elev:       #0b1d17;
+  --surface:       #0f241d;
+  --surface-2:     #142c24;
+  --surface-3:     #1b362c;
+  --scrim:         rgba(3, 10, 8, 0.7);
 
-  --line:          rgba(20, 18, 14, 0.09);
-  --line-mid:      rgba(20, 18, 14, 0.15);
-  --line-strong:   rgba(20, 18, 14, 0.26);
+  --line:          rgba(255, 255, 255, 0.09);
+  --line-mid:      rgba(255, 255, 255, 0.15);
+  --line-strong:   rgba(255, 255, 255, 0.26);
 
-  --text:          #16181a;
-  --text-mid:      #5c6167;
-  --text-dim:      #7c828a;
-  --text-faint:    #9aa0a7;
+  --text:          #eef4f1;
+  --text-mid:      #a3b5ad;
+  --text-dim:      #7b8f87;
+  --text-faint:    #5b6d66;
 
-  --accent:        #8a6d38;
-  --accent-soft:   rgba(138, 109, 56, 0.1);
-  --accent-line:   rgba(138, 109, 56, 0.4);
-  --on-accent:     #fffdf8;
+  --accent:        #4cb391;
+  --accent-soft:   rgba(76, 179, 145, 0.14);
+  --accent-line:   rgba(76, 179, 145, 0.45);
+  --on-accent:     #04150f;
 
-  --pos:           #3f6f57;
-  --warn:          #8f6420;
-  --neg:           #9a4841;
-  --info:          #45647e;
-  --pos-soft:      rgba(63, 111, 87, 0.1);
-  --warn-soft:     rgba(143, 100, 32, 0.1);
-  --neg-soft:      rgba(154, 72, 65, 0.1);
-  --info-soft:     rgba(69, 100, 126, 0.1);
+  --neg:           #ff5c6e;
+  --warn:          #d99a3d;
+  --pos:           #4cb391;
+  --info:          #6ba8cc;
+  --neg-soft:      rgba(255, 92, 110, 0.15);
+  --warn-soft:     rgba(217, 154, 61, 0.15);
+  --pos-soft:      rgba(76, 179, 145, 0.15);
+  --info-soft:     rgba(107, 168, 204, 0.15);
 
-  --series-1: #8a6d38;
-  --series-2: #45647e;
-  --series-3: #5f5478;
-  --series-4: #3f6f57;
-  --series-5: #9a4841;
-  --series-6: #6f6438;
-  --series-7: #3d5c62;
-  --series-8: #6b5347;
+  --series-1: #4cb391;
+  --series-2: #6ba8cc;
+  --series-3: #9b8ac4;
+  --series-4: #7cc9a4;
+  --series-5: #ff5c6e;
+  --series-6: #d99a3d;
+  --series-7: #64a8a2;
+  --series-8: #bd9683;
 
-  --shadow-1: 0 1px 2px rgba(28, 26, 22, 0.06);
-  --shadow-2: 0 8px 24px -10px rgba(28, 26, 22, 0.18);
-  --shadow-3: 0 24px 64px -20px rgba(28, 26, 22, 0.24);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 24px 64px -16px rgba(0, 0, 0, 0.72);
 }

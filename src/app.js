@@ -215,10 +215,10 @@ function updateStatus() {
 }
 
 function toggleTheme() {
-  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   try {
-    localStorage.setItem('nagorik.theme', next);
+    localStorage.setItem('jibon.theme', next);
   } catch {
     /* Theme simply will not persist; not worth interrupting the user. */
   }
