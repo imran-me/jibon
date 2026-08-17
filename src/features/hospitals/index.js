@@ -216,6 +216,6 @@ function networkCard(slice) {
                   ? h('span.badge', {}, `+${facility.capabilities.length - 5}`)
                   : null)),
             h('td.num', {}, fmt.num(load.get(facility.id)?.value || 0)),
-            h('td.num', {}, fmt.num(load.get(facility.id)?.active || 0)))))),
+            h('td.num', {}, fmt.num(load.get(facility.id)?.active || 0))))))),
   );
 }
