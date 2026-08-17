@@ -92,6 +92,69 @@
   <div class="noscript">JIBON is a client-side console and needs JavaScript enabled.</div>
 </noscript>
 
-<script type="module" src="./src/app.js?v=2"></script>
+
+<!--
+  Error boundary. Inline so it is never cached and always runs, even when the
+  module graph fails to load. A blank screen tells a developer nothing; this
+  puts the actual failure on the page.
+-->
+<script>
+  (function () {
+    var shown = false;
+
+    function paint(title, detail) {
+      if (shown) return;
+      shown = true;
+      var root = document.getElementById('view-root');
+      if (!root) return;
+      root.innerHTML = '';
+
+      var box = document.createElement('div');
+      box.style.cssText = 'margin:48px auto;max-width:720px;padding:24px;border:1px solid #f42a41;' +
+        'border-left:3px solid #f42a41;border-radius:10px;background:#fff;font:14px/1.6 system-ui,sans-serif;color:#0d1a16';
+
+      var head = document.createElement('h2');
+      head.textContent = title;
+      head.style.cssText = 'margin:0 0 8px;font-size:17px;color:#f42a41';
+
+      var body = document.createElement('pre');
+      body.textContent = detail;
+      body.style.cssText = 'margin:0 0 16px;padding:12px;background:#f7f9f8;border-radius:6px;' +
+        'font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word';
+
+      var hint = document.createElement('p');
+      hint.style.cssText = 'margin:0;color:#46564f;font-size:13px';
+      hint.innerHTML = 'If this mentions a missing export, your browser is holding stale ES modules. ' +
+        'Run <code>python serve.py 8200</code> and open <b>http://localhost:8200</b> &mdash; ' +
+        'a new port gets a clean module cache.';
+
+      box.appendChild(head); box.appendChild(body); box.appendChild(hint);
+      root.appendChild(box);
+    }
+
+    window.addEventListener('error', function (e) {
+      paint('Startup failed', (e.message || 'Unknown error') + '
+
+' + (e.filename || '') + ':' + (e.lineno || '?'));
+    }, true);
+
+    window.addEventListener('unhandledrejection', function (e) {
+      paint('Startup failed', String((e.reason && e.reason.stack) || e.reason || 'Unhandled rejection'));
+    });
+
+    // If the module never boots, the rail stays empty. Say so rather than showing white.
+    setTimeout(function () {
+      var nav = document.getElementById('rail-nav');
+      if (nav && !nav.children.length) {
+        paint('The application did not start',
+          'index.html loaded, but src/app.js never finished executing.
+' +
+          'Open DevTools (F12) - the Console tab will name the module that failed.');
+      }
+    }, 2500);
+  })();
+</script>
+
+<script type="module" src="./src/app.js?v=3"></script>
 </body>
 </html>
