@@ -240,6 +240,68 @@ tbody tr:hover{background:var(--tint)}
 .big-demo p{font-size:12.5px;color:var(--dim)}
 @media(max-width:700px){.big-demo{flex-direction:column;align-items:stretch}
   .tour{flex-direction:column}}
+
+/* pipeline stepper */
+.stp{display:flex;align-items:center;gap:0;padding:15px 18px;background:#fff;border:1px solid var(--line);
+  border-radius:var(--r);overflow-x:auto;box-shadow:var(--sh)}
+.stp__s{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;padding:0 4px;min-width:78px}
+.stp__d{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;font-size:12px;
+  font-weight:700;border:2px solid var(--line2);color:var(--dim);background:#fff;transition:.25s}
+.stp__n{font-size:10.5px;color:var(--dim);text-align:center;line-height:1.25;font-weight:520}
+.stp__s[data-st=done] .stp__d{background:var(--green);border-color:var(--green);color:#fff}
+.stp__s[data-st=done] .stp__n{color:var(--mid)}
+.stp__s[data-st=now] .stp__d{background:var(--green);border-color:var(--green);color:#fff;
+  box-shadow:0 0 0 5px rgba(0,106,78,.16);transform:scale(1.13)}
+.stp__s[data-st=now] .stp__n{color:var(--green);font-weight:650}
+.stp__l{flex:1;height:2px;background:var(--line2);min-width:14px;margin-bottom:16px;transition:.3s}
+.stp__l[data-st=done]{background:var(--green)}
+.stp__d2{font-size:12.5px;color:var(--dim);text-align:center;margin:9px 0 14px}
+
+/* transport controls */
+.trn{display:flex;align-items:center;gap:9px;padding:11px 15px;background:var(--tint);
+  border:1px solid var(--line);border-radius:var(--r)}
+.trn__b{width:36px;height:36px;border-radius:8px;border:1px solid var(--line2);background:#fff;
+  font-size:13px;color:var(--mid);transition:.13s}
+.trn__b:hover:not([disabled]){border-color:var(--green);color:var(--green)}
+.trn__b[disabled]{opacity:.35;cursor:not-allowed}
+.trn__b--main{width:44px;height:44px;background:var(--green);color:#fff;border-color:var(--green);font-size:15px}
+.trn__b--main:hover{background:#00563f;color:#fff}
+.trn__p{flex:1;min-width:60px}
+.trn__x{display:flex;gap:2px;background:#fff;border:1px solid var(--line2);border-radius:7px;padding:2px}
+.trn__x button{padding:5px 9px;border-radius:5px;font-size:11.5px;color:var(--dim);font-weight:600}
+.trn__x button[data-on="1"]{background:var(--green);color:#fff}
+
+.nowbox{padding:14px 16px;background:var(--green);color:#fff;border-radius:9px;font-size:14px;
+  font-weight:530;line-height:1.5;animation:in .3s}
+
+/* vitals */
+.vit{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.vit__c{background:#fff;padding:11px 13px}
+.vit__l{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.vit__v{font-size:18px;font-weight:600;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
+
+/* allocation actions */
+.act{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.act__b{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:11px 13px;
+  border:1px solid var(--line2);border-radius:9px;background:#fff;text-align:left;position:relative;transition:.13s}
+.act__b:hover{border-color:var(--green);background:var(--tint)}
+.act__b--on{border-color:var(--green);background:rgba(0,106,78,.06)}
+.act__t{font-size:12.5px;font-weight:560}
+.act__s{font-size:11px;color:var(--dim)}
+.act__b--on .act__s{color:var(--green)}
+.act__i{position:absolute;top:11px;right:12px;font-size:12px;color:var(--line2)}
+.act__b--on .act__i{color:var(--green)}
+
+/* inventory rows */
+.inv{display:grid;grid-template-columns:1fr auto auto;gap:11px;align-items:center;padding:6px 8px;
+  border-radius:6px;font-size:12.5px}
+.inv:hover{background:var(--tint)}
+.inv--short{background:rgba(244,42,65,.05)}
+.inv__n{color:var(--mid)}
+.inv__q{color:var(--dim);font-size:11.5px}
+.inv__s{font-size:11.5px;font-weight:600;min-width:88px;text-align:right}
+@media(max-width:700px){.act{grid-template-columns:1fr}}
 @media(max-width:1000px){.g2,.g2e{grid-template-columns:1fr}}
 </style>
 </head>
@@ -471,7 +533,7 @@ function toast(m){var t=$('#tst');t.innerHTML='<div class="toast">'+esc(m)+'</di
 
 /* ── Navigation ────────────────────────────────────────────────────────── */
 var VIEWS=[
-  ['command','Command Center'],['citizen','Report Emergency'],['patient','Patient / Doctor'],
+  ['command','Command Center'],['scenario','▶ Scenario'],['citizen','Report Emergency'],['patient','Patient / Doctor'],
   ['ambulance','Ambulance'],['hospital','Hospital Board'],['cases','All Cases'],
   ['analytics','Impact'],['ai','Gemini AI']
 ];
@@ -485,7 +547,7 @@ function go(v){view=v;nav();draw();window.scrollTo(0,0)}
 
 function draw(){
   var f={command:vCommand,citizen:vCitizen,patient:vPatient,ambulance:vAmb,
-         hospital:vHosp,cases:vCases,analytics:vAnalytics,ai:vAI}[view];
+         hospital:vHosp,cases:vCases,analytics:vAnalytics,ai:vAI,scenario:vScenario}[view];
   $('#app').innerHTML=tourBar()+helpBar()+f();
 }
 
@@ -596,11 +658,30 @@ function banner(){
     '<button class="btn pri sm" onclick="openCase(\''+SIM.id+'\')">Open case</button></div>';
 }
 
-/* ── The scenario engine ───────────────────────────────────────────────────
-   Drives a genuine case record through the genuine state machine at
-   compressed speed. The interfaces are reacting to a case that is really
-   changing — nothing here is a canned animation.                            */
-var SIM={on:false,id:null,cap:'',i:0,n:0,timers:[]};
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE SCENARIO ENGINE
+   Drives a genuine case record through the genuine state machine. The
+   interfaces are reacting to a case that is really changing — nothing here is
+   a canned animation.
+
+   Steps are grouped into the seven phases of the coordination pipeline, and the
+   presenter controls the pace: play, pause, step forward, step back, restart.
+   An auto-playing demo you cannot stop is a demo that talks over you.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The pipeline, stated once. Everything else references these keys. */
+var PHASES=[
+  {k:'detect',   n:'Detected',   d:'Bystander raises the emergency — one tap or plain speech'},
+  {k:'classify', n:'Understood', d:'AI turns speech and image into a structured case'},
+  {k:'resource', n:'Resourced',  d:'Destination, relay and equipment decided from the classification'},
+  {k:'dispatch', n:'Dispatched', d:'Ambulance sent, already loaded for this emergency'},
+  {k:'connect',  n:'Connected',  d:'Doctor and volunteer join the open session'},
+  {k:'transit',  n:'In transit', d:'Patient collected, hospitals preparing along the route'},
+  {k:'arrive',   n:'Handed over',d:'Team assembled before arrival — treatment starts at the door'}
+];
+var PHIDX={};PHASES.forEach(function(p,i){PHIDX[p.k]=i});
+
+var SIM={on:false,id:null,cap:'',i:0,n:0,timers:[],steps:null,playing:false,speed:1,phase:'detect'};
 
 function runSim(type){
   stopSim();
@@ -666,17 +747,65 @@ function runSim(type){
       log(c,'Handed over at '+HOSP[c.dest].n,'Team already assembled — assessment did not restart','hos');
       SIM.on=false;toast('Scenario complete. Hospital had the case 46 minutes before arrival.')}]
   ];
-  SIM.n=S.length;
-  S.forEach(function(s,i){
-    SIM.timers.push(setTimeout(function(){
-      if(SIM.id!==c.id)return;
-      s[2]();SIM.cap=s[1];SIM.i=i+1;
-      if(i===S.length-1)SIM.on=false;
-      refresh();
-    },s[0]*1000));
-  });
-  go('command');
-  toast('Scenario started — watch the timeline build.');
+  /* Which pipeline phase each step belongs to, so the stepper always shows
+     where in the coordination chain we currently are. */
+  var PH=['detect','classify','resource','dispatch','connect','connect','connect',
+          'connect','connect','transit','transit','transit','transit','transit','arrive'];
+
+  /* Snapshot the case before each step so Back is a real undo, not a replay. */
+  SIM.steps=S;SIM.n=S.length;SIM.i=0;SIM.phase='detect';SIM.cap='Ready — press play';
+  SIM.snaps=[JSON.parse(JSON.stringify(c))];
+  SIM.ph=PH;SIM.case=c;
+
+  go('scenario');
+  play();
+  toast('Scenario loaded. You can pause, step forward or step back at any point.');
+}
+
+/* ── Transport controls ────────────────────────────────────────────────── */
+
+function stepFwd(){
+  if(!SIM.steps||SIM.i>=SIM.n)return;
+  var c=SIM.case,s=SIM.steps[SIM.i];
+  s[2]();
+  SIM.cap=s[1];SIM.phase=SIM.ph[SIM.i];SIM.i++;
+  SIM.snaps.push(JSON.parse(JSON.stringify(c)));
+  if(SIM.i>=SIM.n){SIM.on=false;pause();
+    toast('Complete. The hospital had this case 46 minutes before the patient arrived.')}
+  refresh();
+}
+
+/* Back restores the snapshot taken before the step, so the timeline, the brief
+   and every hospital status genuinely roll back together. */
+function stepBack(){
+  if(!SIM.steps||SIM.i<=0)return;
+  pause();
+  SIM.i--;SIM.snaps.pop();
+  var snap=SIM.snaps[SIM.i];
+  var idx=-1;CASES.forEach(function(x,j){if(x.id===SIM.id)idx=j});
+  if(idx>-1){CASES[idx]=JSON.parse(JSON.stringify(snap));SIM.case=CASES[idx]}
+  SIM.on=true;
+  SIM.phase=SIM.i>0?SIM.ph[SIM.i-1]:'detect';
+  SIM.cap=SIM.i>0?SIM.steps[SIM.i-1][1]:'Ready — press play';
+  refresh();
+}
+
+function play(){
+  if(!SIM.steps||SIM.i>=SIM.n)return;
+  SIM.playing=true;
+  clearInterval(SIM.tick);
+  SIM.tick=setInterval(function(){
+    if(!SIM.playing||SIM.i>=SIM.n){pause();return}
+    stepFwd();
+  },1400/SIM.speed);
+  refresh();
+}
+function pause(){SIM.playing=false;clearInterval(SIM.tick);refresh()}
+function toggledPlay(){SIM.playing?pause():play()}
+function setSpeed(x){SIM.speed=x;if(SIM.playing)play();else refresh()}
+function restartSim(){
+  var t=SIM.case?SIM.case.type:'unconscious';
+  stopSim();runSim(t==='trauma'?'trauma':'unconscious');
 }
 function log(c,l,d,a){c.tl.push({t:Date.now(),l:l,d:d,a:a})}
 function stopSim(){SIM.timers.forEach(clearTimeout);SIM.timers=[];SIM.on=false;SIM.id=null;refresh()}
@@ -831,6 +960,199 @@ function runSimFrom(r,txt){
   refresh();
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESOURCE ALLOCATION
+   Knowing the patient is coming is only half of it. The other half is that the
+   theatre, the bed, the blood and the consumables are actually secured before
+   they arrive — and that a shortfall is discovered now, while there is still
+   time to source it, rather than at the door.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Stock on hand per facility. A real deployment reads this from the hospital's
+   inventory system; the shortfalls here are deliberate so the procurement path
+   is visible in a demo. */
+var STOCK={
+  'dhaka-dmch':{'O-negative blood':6,'Packed red cells':14,'Intubation set':4,'Mannitol 20%':2,
+    'CT contrast':9,'Ventilator circuit':3,'Central line kit':1,'Tranexamic acid':11},
+  'barishal-smch':{'O-negative blood':3,'Packed red cells':7,'Intubation set':2,'Mannitol 20%':0,
+    'CT contrast':4,'Ventilator circuit':1,'Central line kit':0,'Tranexamic acid':5},
+  'patuakhali-mch':{'O-negative blood':2,'Packed red cells':4,'Intubation set':1,'Mannitol 20%':0,
+    'CT contrast':1,'Ventilator circuit':0,'Central line kit':0,'Tranexamic acid':2},
+  'dhaka-nitor':{'O-negative blood':4,'Packed red cells':10,'Intubation set':3,'Mannitol 20%':1,
+    'CT contrast':6,'Ventilator circuit':2,'Central line kit':2,'Tranexamic acid':8},
+  'dhaka-nicvd':{'O-negative blood':5,'Packed red cells':9,'Intubation set':3,'Mannitol 20%':1,
+    'CT contrast':7,'Ventilator circuit':2,'Central line kit':2,'Tranexamic acid':6},
+  'kuakata-uhc':{'O-negative blood':0,'Packed red cells':1,'Intubation set':0,'Mannitol 20%':0,
+    'CT contrast':0,'Ventilator circuit':0,'Central line kit':0,'Tranexamic acid':1}
+};
+
+/* What each emergency actually consumes, with the quantity the protocol assumes. */
+var NEEDS={
+  unconscious:[['Intubation set',1],['Mannitol 20%',2],['CT contrast',1],['Ventilator circuit',1],['Central line kit',1]],
+  cardiac:[['Intubation set',1],['Packed red cells',2],['Central line kit',1],['Ventilator circuit',1]],
+  trauma:[['O-negative blood',4],['Packed red cells',6],['Tranexamic acid',2],['Intubation set',1],['CT contrast',1],['Central line kit',1]],
+  bleeding:[['O-negative blood',4],['Packed red cells',6],['Tranexamic acid',2],['Central line kit',1]],
+  breathing:[['Intubation set',1],['Ventilator circuit',2]],
+  stroke:[['CT contrast',1],['Mannitol 20%',2],['Intubation set',1]],
+  other:[['Intubation set',1],['CT contrast',1]]
+};
+NEEDS.burn=NEEDS.trauma;NEEDS.poisoning=NEEDS.other;NEEDS.obstetric=NEEDS.bleeding;
+NEEDS.fire=NEEDS.trauma;NEEDS.police=NEEDS.other;
+
+/* Theatres, so allocation names a real room rather than a boolean. */
+var THEATRES={'dhaka-dmch':['OT-1 (Trauma)','OT-3 (General)','OT-7 (Neuro)'],
+  'barishal-smch':['OT-1 (Emergency)','OT-2 (General)'],'patuakhali-mch':['OT-1 (General)'],
+  'dhaka-nitor':['OT-2 (Ortho)','OT-4 (Trauma)'],'dhaka-nicvd':['Cath lab 1','OT-1 (Cardiac)'],
+  'kuakata-uhc':[]};
+
+function needsFor(c){return NEEDS[c.type]||NEEDS.other}
+function stockAt(h,item){return (STOCK[h]&&STOCK[h][item])!=null?STOCK[h][item]:0}
+
+/** Items the receiving hospital cannot cover from stock on hand. */
+function shortfall(c){
+  return needsFor(c).filter(function(n){return stockAt(c.dest,n[0])<n[1]})
+    .map(function(n){return {item:n[0],need:n[1],have:stockAt(c.dest,n[0]),gap:n[1]-stockAt(c.dest,n[0])}});
+}
+
+/* Allocation state lives on the case, so it travels with the patient and shows
+   up on every interface that reads the case. */
+function alloc(c){
+  if(!c.alloc) c.alloc={ot:null,icu:false,blood:false,proc:null,transfer:false};
+  return c.alloc;
+}
+
+function allocOT(id){
+  var c=CASES.filter(function(x){return x.id===id})[0];if(!c)return;
+  var a=alloc(c),list=THEATRES[c.dest]||[];
+  if(!list.length){toast('This facility has no theatre — that is exactly why the router sent the patient onward.');return}
+  a.ot=list[0];
+  log(c,'Theatre allocated — '+a.ot,'Held at '+HOSP[c.dest].n+' for '+TYPES[c.type].n.toLowerCase(),'hos');
+  toast(a.ot+' allocated and held.');refresh();
+}
+function allocICU(id){
+  var c=CASES.filter(function(x){return x.id===id})[0];if(!c)return;
+  var a=alloc(c);a.icu=true;
+  log(c,'ICU bed provisionally held','Released automatically if the case is stood down','hos');
+  toast('ICU bed held at '+HOSP[c.dest].c+'.');refresh();
+}
+function allocBlood(id){
+  var c=CASES.filter(function(x){return x.id===id})[0];if(!c)return;
+  var a=alloc(c);a.blood=true;
+  log(c,'Blood cross-match started','O-negative released to the receiving bay pending group and screen','hos');
+  toast('Cross-match started — O-negative on standby.');refresh();
+}
+
+/* The point of the inventory check: a gap found now is a gap that can still be
+   closed. Found at the door, it is a gap that costs the patient. */
+function raiseProc(id){
+  var c=CASES.filter(function(x){return x.id===id})[0];if(!c)return;
+  var a=alloc(c),sh=shortfall(c);
+  if(!sh.length){toast('Nothing short — the receiving hospital can cover this case from stock.');return}
+  a.proc='sourcing';
+  log(c,'Urgent procurement raised','Short: '+sh.map(function(s){return s.item+' ×'+s.gap}).join(', '),'hos');
+  toast('Procurement raised for '+sh.length+' item'+(sh.length>1?'s':'')+' — sourcing now.');
+  refresh();
+  /* Sourcing resolves against nearby facilities and suppliers while the
+     ambulance is still on the road. */
+  setTimeout(function(){
+    a.proc='secured';
+    var eta=Math.max(12,Math.round((c.transit||52)*0.45));
+    a.procEta=eta;
+    log(c,'Shortfall secured','Sourced from '+(c.relays.length?HOSP[c.relays[0]].c:'the district depot')+
+      ' — arriving in '+eta+' min, ahead of the patient','hos');
+    toast('All items secured. ETA '+eta+' min — ahead of the ambulance.');
+    refresh();
+  },3200);
+}
+
+function doTransfer(id){
+  var c=CASES.filter(function(x){return x.id===id})[0];if(!c)return;
+  var a=alloc(c);a.transfer=true;c.prep='Team ready';
+  log(c,'Transfer accepted by '+HOSP[c.dest].n,'Bed, team and resources confirmed — patient accepted','hos');
+  toast('Transfer accepted by '+HOSP[c.dest].c+'.');refresh();
+}
+
+/* ── Live patient state ────────────────────────────────────────────────────
+   Vitals drift with the case so the profile is a monitor, not a form. Derived
+   from the step index rather than a timer, so stepping back rolls them back. */
+function vitals(c){
+  var p=SIM.id===c.id?SIM.i:12, crit=c.pri==='P1';
+  var hr=crit?(38+p*3):(88+p);
+  var sp=crit?Math.min(97,74+p*1.4):96;
+  var sbp=crit?(78+p*2.2):118;
+  return [
+    ['Heart rate',Math.round(hr)+' bpm',hr<50||hr>120?'bad':hr>100?'warn':'ok'],
+    ['SpO₂',Math.round(sp)+'%',sp<90?'bad':sp<94?'warn':'ok'],
+    ['Blood pressure',Math.round(sbp)+'/'+Math.round(sbp*0.62)+' mmHg',sbp<90?'bad':sbp<100?'warn':'ok'],
+    ['GCS',crit?(p<6?'3':p<10?'8':'11'):'15',crit&&p<10?'bad':crit?'warn':'ok']
+  ];
+}
+
+/* ── View: Scenario ────────────────────────────────────────────────────────
+   One screen holding the whole run: where we are in the pipeline, what just
+   happened, and the case changing underneath. Presenter-paced.               */
+function vScenario(){
+  if(!SIM.case) return '<div class="hd"><h1>Scenario</h1>'+
+    '<p>Nothing loaded. Pick one to walk through the coordination chain step by step.</p></div>'+
+    '<div class="grid g2e">'+
+    [['unconscious','🧍','Unconscious person — Kuakata',
+      'Remote coastal location, no clinician nearby, definitive care 250 km away. Exercises the relay chain.'],
+     ['trauma','🚗','Road accident — Padma Bridge',
+      'Multi-casualty collision on a highway. Exercises trauma routing, blood and theatre allocation.']]
+    .map(function(s){return '<button class="card" style="text-align:left;cursor:pointer" onclick="runSim(\''+s[0]+'\')">'+
+      '<div style="font-size:30px;margin-bottom:9px">'+s[1]+'</div>'+
+      '<h3>'+esc(s[2])+'</h3><p class="sub" style="margin-top:5px">'+esc(s[3])+'</p>'+
+      '<span class="btn pri" style="margin-top:13px">▶ Load scenario</span></button>'}).join('')+'</div>';
+
+  var c=SIM.case,T=TYPES[c.type];
+  return '<div class="hd"><h1>Scenario walkthrough</h1>'+
+    '<p>'+esc(T.n)+' · '+esc(c.place)+' — step through at your own pace</p></div>'+
+    stepper()+transport()+
+    '<div class="grid g2" style="margin-top:16px">'+
+      '<div style="display:flex;flex-direction:column;gap:14px">'+
+        '<div class="card"><h3>What just happened</h3>'+
+        '<div class="sub">Step '+SIM.i+' of '+SIM.n+'</div>'+
+        '<div class="nowbox">'+esc(SIM.cap)+'</div>'+
+        '<div style="margin-top:14px"><div class="eyebrow" style="margin-bottom:8px">Case timeline</div>'+
+        tlHTML(c)+'</div></div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:14px">'+
+        vitalsCard(c)+
+        '<div class="card"><h3>Emergency brief</h3>'+
+        '<div class="sub">What every responder joining this case reads</div>'+briefRows(c)+'</div>'+
+        '<div class="card"><h3>Route</h3><div class="sub">Scene → relay → definitive care</div>'+
+        mapSVG(c)+'<div style="margin-top:12px"></div>'+routeHTML(c)+'</div>'+
+      '</div>'+
+    '</div>';
+}
+
+/* The seven-phase pipeline, always visible so nobody loses the thread. */
+function stepper(){
+  var cur=PHIDX[SIM.phase]||0;
+  return '<div class="stp">'+PHASES.map(function(p,i){
+    var st=i<cur?'done':i===cur?'now':'todo';
+    return '<button class="stp__s" data-st="'+st+'" title="'+esc(p.d)+'">'+
+      '<span class="stp__d">'+(i<cur?'✓':(i+1))+'</span>'+
+      '<span class="stp__n">'+esc(p.n)+'</span></button>'+
+      (i<PHASES.length-1?'<span class="stp__l" data-st="'+(i<cur?'done':'todo')+'"></span>':'')
+  }).join('')+'</div>'+
+  '<div class="stp__d2">'+esc((PHASES[cur]||PHASES[0]).d)+'</div>';
+}
+
+/* Transport controls. A demo you cannot pause is a demo that talks over you. */
+function transport(){
+  return '<div class="trn">'+
+    '<button class="trn__b" onclick="restartSim()" title="Restart">⏮</button>'+
+    '<button class="trn__b" onclick="stepBack()" title="Previous step"'+(SIM.i<=0?' disabled':'')+'>◀</button>'+
+    '<button class="trn__b trn__b--main" onclick="toggledPlay()" title="Play / pause">'+
+      (SIM.playing?'⏸':'▶')+'</button>'+
+    '<button class="trn__b" onclick="stepFwd()" title="Next step"'+(SIM.i>=SIM.n?' disabled':'')+'>▶</button>'+
+    '<div class="trn__p"><span class="meter"><i style="width:'+(SIM.n?SIM.i/SIM.n*100:0)+'%;background:var(--green)"></i></span></div>'+
+    '<div class="trn__x">'+[1,2,4].map(function(x){
+      return '<button data-on="'+(SIM.speed===x?1:0)+'" onclick="setSpeed('+x+')">'+x+'×</button>'}).join('')+'</div>'+
+    '</div>';
+}
+
 /* ── View: Patient / Doctor ────────────────────────────────────────────── */
 function vPatient(){
   var c=CASES.filter(function(x){return x.sim})[0]||CASES.filter(active)[0]||CASES[0];
@@ -854,6 +1176,8 @@ function vPatient(){
       '<span class="pill nu">AI confidence '+pct(c.conf)+'</span></div>'+
     '</div>'+
     '<div style="display:flex;flex-direction:column;gap:14px">'+
+      vitalsCard(c)+
+      allocCard(c)+
       '<div class="card"><h3>Live timeline</h3><div class="sub">Every transition, logged and inspectable</div>'+
       tlHTML(c)+'</div>'+
       '<div class="card"><h3>Guided first aid in progress</h3>'+
@@ -866,6 +1190,70 @@ function vPatient(){
       '</ol></div>'+
     '</div>'+
   '</div>';
+}
+
+/* Live patient state — a monitor, not a form. */
+function vitalsCard(c){
+  var col={ok:'var(--green)',warn:'var(--amber)',bad:'var(--red)'};
+  return '<div class="card"><div class="row between" style="margin-bottom:12px">'+
+    '<div><h3>Live patient state</h3><div class="sub" style="margin:0">'+
+    'Streaming from the scene — updates as responders report</div></div>'+
+    '<span class="pill '+(c.pri==='P1'?'p1':'p2')+'"><span class="dot"></span>Live</span></div>'+
+    '<div class="vit">'+vitals(c).map(function(v){
+      return '<div class="vit__c"><div class="vit__l">'+esc(v[0])+'</div>'+
+      '<div class="vit__v" style="color:'+col[v[2]]+'">'+esc(v[1])+'</div></div>'}).join('')+'</div>';
+}
+
+/* Resource allocation. Every control here is a real state change that writes to
+   the case timeline — which is what a receiving charge nurse actually does. */
+function allocCard(c){
+  var a=alloc(c),sh=shortfall(c),H=HOSP[c.dest],needs=needsFor(c);
+  return '<div class="card"><h3>Prepare the receiving hospital</h3>'+
+    '<div class="sub">'+esc(H.n)+' — actions taken now, while the patient is still on the road</div>'+
+
+    '<div class="act">'+
+      actBtn('Allocate theatre',a.ot||((THEATRES[c.dest]||[]).length?'Not allocated':'None at this facility'),
+        !!a.ot,'allocOT(\''+c.id+'\')')+
+      actBtn('Hold ICU bed',a.icu?'Held':'Not held',a.icu,'allocICU(\''+c.id+'\')')+
+      actBtn('Cross-match blood',a.blood?'O-neg on standby':'Not started',a.blood,'allocBlood(\''+c.id+'\')')+
+      actBtn('Accept transfer',a.transfer?'Accepted':'Pending',a.transfer,'doTransfer(\''+c.id+'\')')+
+    '</div>'+
+
+    '<div style="margin-top:16px"><div class="row between" style="margin-bottom:8px">'+
+    '<div class="eyebrow">Inventory check — '+esc(H.c)+'</div>'+
+    (sh.length?'<span class="pill p1">'+sh.length+' short</span>':'<span class="pill ok">All in stock</span>')+'</div>'+
+    needs.map(function(n){
+      var have=stockAt(c.dest,n[0]),ok=have>=n[1];
+      return '<div class="inv'+(ok?'':' inv--short')+'">'+
+        '<span class="inv__n">'+esc(n[0])+'</span>'+
+        '<span class="inv__q num">need '+n[1]+'</span>'+
+        '<span class="inv__s num" style="color:'+(ok?'var(--green)':'var(--red)')+'">'+
+        (ok?'✓ '+have+' in stock':'✕ only '+have)+'</span></div>'}).join('')+
+    '</div>'+
+
+    (sh.length?
+      '<div class="'+(a.proc==='secured'?'quote':'redbox')+'" style="margin-top:13px">'+
+      (a.proc==='secured'
+        ? '<b>✓ Shortfall secured.</b> Sourced from '+esc(c.relays.length?HOSP[c.relays[0]].c:'the district depot')+
+          ', arriving in '+(a.procEta||18)+' minutes — ahead of the patient.'
+        : a.proc==='sourcing'
+        ? '<b>Sourcing…</b> Checking nearby facilities and suppliers for '+
+          esc(sh.map(function(s){return s.item}).join(', '))+'.'
+        : '<b>'+sh.length+' item'+(sh.length>1?'s':'')+' short at '+esc(H.c)+'.</b> '+
+          esc(sh.map(function(s){return s.item+' (need '+s.need+', have '+s.have+')'}).join('; '))+
+          '. Found now, this can still be closed before arrival.')+
+      (a.proc?'':'<div style="margin-top:11px"><button class="btn dan sm" onclick="raiseProc(\''+c.id+'\')">'+
+        '⚡ Raise urgent procurement</button></div>')+
+      '</div>'
+      :'<div class="quote" style="margin-top:13px">Everything this case needs is on the shelf at '+esc(H.c)+'.</div>')+
+    '</div>';
+}
+
+function actBtn(label,state,done,fn){
+  return '<button class="act__b'+(done?' act__b--on':'')+'" onclick="'+fn+'">'+
+    '<span class="act__t">'+esc(label)+'</span>'+
+    '<span class="act__s">'+esc(state)+'</span>'+
+    '<span class="act__i">'+(done?'✓':'→')+'</span></button>';
 }
 
 function briefRows(c){
@@ -1567,6 +1955,7 @@ function reopenWelcome(){try{localStorage.removeItem('jibon.seen')}catch(e){};we
 
 /* ── Plain-language help per view ──────────────────────────────────────── */
 var HELP={
+  scenario:['Step through a real emergency','Play, pause, go back a step. The pipeline at the top shows which of the seven coordination phases you are in — everything below it is the case actually changing.'],
   command:['The duty coordinator\'s screen','Every number here opens the cases behind it — nothing is decoration. '+
     'Red means immediate threat to life.'],
   citizen:['What the person at the scene sees','Two seconds to raise an emergency. They tap a picture or speak '+
