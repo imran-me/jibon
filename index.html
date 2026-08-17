@@ -80,7 +80,8 @@ main{max-width:1400px;margin:0 auto;padding:24px}
 .case .bar{align-self:stretch;border-radius:3px}
 .case .t{font-size:13.5px;font-weight:540}
 .case .m{font-size:11px;color:var(--dim);display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
-.meter{height:4px;background:#eef2f0;border-radius:99px;overflow:hidden}
+.meter{display:block;height:4px;background:#eef2f0;border-radius:99px;overflow:hidden}
+.case .meter{display:inline-block;vertical-align:middle}
 .meter i{display:block;height:100%;border-radius:99px;transition:width .5s}
 
 /* timeline */
@@ -398,6 +399,9 @@ function makeCase(minsAgo,mode){
 }
 /* Last 7 days coordinated, the 3 weeks before it conventional — so the
    before/after comparison is computed from data, not asserted. */
+/* A coordinator never opens an empty board. Seed cases still in flight so
+   the KPIs, transit units and preparing hospitals are live on first paint. */
+for(var i=0;i<7;i++) CASES.push(makeCase(ri(3,95),'jibon'));
 for(var i=0;i<58;i++) CASES.push(makeCase(ri(2,10000),'jibon'));
 for(var i=0;i<74;i++) CASES.push(makeCase(ri(10100,43000),'baseline'));
 CASES.sort(function(a,b){return b.ts-a.ts});
