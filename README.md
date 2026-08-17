@@ -44,112 +44,92 @@ dead time and becomes **escalating care** — without a single new ambulance, th
 
 ---
 
+## For judges — 90 seconds
+
+Open the site, press **▶ Guided tour**. It runs a real emergency (an unconscious person on Kuakata beach
+road) through the platform's own state machine and moves the screen to whichever interface is acting at
+that moment, narrating as it goes:
+
+1. **Report Emergency** — the bystander taps one icon or speaks in Bangla/English; the AI builds a
+   structured brief with every line labelled *Reported / Observed / AI inferred / Verified / Needs confirmation*.
+2. **Command Center** — the case is on the board, prioritised and routed; every KPI and every dot on the
+   network map opens the cases behind it.
+3. **Ambulance** — the crew has the equipment manifest, the route and the relay before reaching the patient.
+4. **Patient / Doctor** — the clinician reads instead of asking; the caller is never re-interviewed.
+5. **Hospital Board** — receiving and relay hospitals move **Notified → Preparing → Team ready** while the
+   patient is still on the road.
+6. **Impact** — conventional vs coordinated pipeline, measured on the dataset, closing on
+   *"Don't wait for the patient to arrive before preparing for the patient."*
+
+Every number is clickable. Every recommendation has a **Why?**. Nothing is decoration.
+
 ## Running it
 
-No build step, no dependencies, no package manager.
+The whole application is one file — `index.html` — with no build step, no dependencies and no server.
+Double-click it, or serve the folder with anything static:
 
 ```bash
 git clone https://github.com/imran-me/jibon.git
 cd jibon
-python -m http.server 8000
+python serve.py        # http://localhost:8000  (or just open index.html)
 ```
-
-Open <http://localhost:8000>. A server is required because the app uses ES modules, which browsers
-refuse to load over `file://`.
 
 ### Deploying
 
-Push to GitHub, then **Settings → Pages → Deploy from branch → `main` / root**. That is the whole
-deployment. `.nojekyll` is committed so Pages serves the `src/` directories untouched.
+Push to GitHub, then **Settings → Pages → Deploy from branch → `main` / root**. `.nojekyll` is committed.
 
-### API keys
+### Gemini
 
-The console is fully usable with no key — classification falls back to a local keyword classifier and
-every "Explain" action produces a deterministic explanation from the same computed statistics.
+The console is fully usable with no key — classification falls back to a local rule set and every
+"Explain" action produces a deterministic rationale from the same computed statistics.
 
-For live Gemini, open **Settings** and paste a key from
-[Google AI Studio](https://aistudio.google.com/apikey). It is stored in your browser's localStorage
-and sent directly to Google. **No key is ever committed to this repository** — there is no server
-here for one to live on.
+For live Gemini, open the **Gemini AI** tab and paste a free key from
+[Google AI Studio](https://aistudio.google.com/apikey). It is stored in your browser's localStorage and
+sent directly to Google (`gemini-2.5-flash` by default). **No key is ever committed to this repository** —
+there is no server here for one to live on. Gemini is used for:
 
-Optional: an ElevenLabs key enables spoken briefings. Without it the browser's built-in speech is
-used instead.
+- speech / photo → structured triage JSON (type, priority, consciousness, breathing, observations,
+  missing information, calibrated confidence)
+- "Why this hospital?" routing rationale written from the structured routing payload
+- operational Q&A grounded on pre-computed figures, so the model cannot invent a total
 
----
+Every AI surface degrades to a local fallback, so venue wifi cannot take the demo down.
 
 ## Architecture
 
-Static ES modules. The layering is strict: `domain` never imports from `ui`, and `ui` never reaches
-into `features`.
+`index.html` is deliberately a single file so it cannot fail to load on a judge's laptop. Inside it the
+layering is still strict, top to bottom:
 
 ```
-index.html                 App shell — chrome only, no logic
-assets/                    Static assets
-src/
-├── app.js                 Bootstrap: routes, nav, command palette, shortcuts
-├── core/                  Runtime with no domain knowledge
-│   ├── dom.js             Hyperscript — builds DOM, never parses HTML strings
-│   ├── store.js           Single mutable state behind subscribe/set
-│   ├── router.js          Hash router (GitHub Pages safe on refresh)
-│   ├── bus.js             Pub/sub for cross-cutting events
-│   ├── storage.js         Guarded localStorage
-│   └── format.js          All number, time and duration formatting
-├── domain/                The model and the rules — pure, no DOM
-│   ├── taxonomy.js        Emergency types, priorities, stages, provenance
-│   ├── network.js         Facilities, capabilities, routing and relay selection
-│   ├── protocols.js       Equipment manifests, first aid, hospital prep checklists
-│   ├── incidents.js       Incident record, timeline, lifecycle, demo dataset
-│   ├── analytics.js       Every statistic on screen
-│   ├── selectors.js       Memoised "what am I looking at" reads
-│   └── simulation.js      Scenario engine
-├── services/              External I/O
-│   ├── gemini.js          REST client: streaming, structured output, images
-│   ├── voice.js           ElevenLabs TTS + Web Speech, each with a fallback
-│   └── prompts.js         Prompts and response schemas, kept as reviewable content
-├── ui/                    Reusable components
-│   ├── charts.js          SVG chart engine — no charting library
-│   ├── incident.js        Brief, timeline, manifest, route chain, case row
-│   ├── drilldown.js       Every click-through panel in the app
-│   ├── kpi.js  drawer.js  modal.js  toast.js  icons.js
-└── features/              One folder per screen
-    ├── command-center/    Live board, KPIs, conventional-vs-coordinated
-    ├── citizen/           Icon grid, voice, camera, triage
-    ├── incidents/         Case list, filters, CSV export
-    ├── hospitals/         Pre-arrival board and readiness controls
-    ├── analytics/         Where time is lost
-    ├── assistant/         Ask the live case data
-    └── settings/          Keys, consent, data controls
+Reference data     TYPES · HOSP (facilities + capabilities) · KIT (equipment manifests)
+                   PREP (hospital checklists) · AID (lay first-aid protocols) · GEO
+Seeded dataset     132 emergencies from a fixed seed — last 7 days coordinated, 3 weeks before
+                   conventional — so every before/after figure is computed, never asserted
+Scenario engine    runSim(): drives a genuine case record through the real stages at compressed speed
+Views              Command Center · Report · Patient/Doctor · Ambulance · Hospital Board ·
+                   All Cases · Impact · Gemini AI — each a pure function of state
+Drill-downs        every KPI, chart segment, facility, case and timeline event opens a sheet
+Gemini client      gem(): structured output, thinking budget, 20 s timeout, safety/finish handling
 ```
+
+`src/` holds the earlier ES-module build of the same product (kept for reference; the deployed page does
+not load it).
 
 ### Design rules the code enforces
 
 **No number is a dead end.** Every KPI, chart segment, legend entry, table row, facility and timeline
-event opens a panel that recomputes from the same analytics functions the tile used. A tile and its
-explanation can never disagree, because they run the same code over the same rows.
+event opens a panel that recomputes from the same functions the tile used.
 
 **Nothing is displayed without provenance.** Every clinical fact carries a badge — `Reported`,
-`Observed`, `AI inferred`, `Verified`, `Needs confirmation`. A responder must be able to see at a
-glance which lines a model concluded and which a clinician confirmed.
+`Observed`, `AI inferred`, `Verified`, `Needs confirmation`.
 
 **The AI classifies; it does not prescribe.** First-aid steps, equipment manifests and hospital
-checklists are static, reviewable tables in `domain/protocols.js`. The model selects which protocol
-applies. It never authors one, never names a medication, and never states a diagnosis as fact. Every
-classification carries a calibrated confidence, and low confidence escalates to a human.
+checklists are static, reviewable tables. The model selects which protocol applies; it never authors one,
+never names a medication, never states a diagnosis as fact.
 
-**It works offline.** The dataset is generated locally from a fixed seed, so every reload on every
-machine shows identical figures. With no API key the app still classifies, explains and demonstrates
-end to end — the venue wifi cannot break the demo.
-
----
-
-## Demo
-
-From the Command Center, run **Unconscious person — Kuakata**. It drives a real incident record
-through the real state machine at compressed speed. Watch the timeline fill, the relay hospitals move
-Notified → Preparing → Team ready, and the clinical-window meter track against the eight-minute
-budget.
-
-`Ctrl/Cmd-K` opens the command palette. Single keys jump between screens: `c` `r` `i` `h` `a` `s`.
+**Privacy by construction.** Microphone and camera activate only on an explicit press and stop on release;
+cases live in the browser only; the timeline is the audit log; a "Clear local data" control removes
+everything.
 
 ## Honest scope
 
