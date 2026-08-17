@@ -928,7 +928,7 @@ function submitReport(){
     (txt?'Caller\'s report:\n"""\n'+txt+'\n"""':'The caller has not spoken — classify from the icon and photo alone, and mark confidence accordingly.')}];
   if(PHOTO) parts.push({inlineData:{mimeType:PHOTO.mime,data:PHOTO.data}});
 
-  gem(parts,TRIAGE_SYS,TRIAGE_SCHEMA,1200)
+  gem(parts,TRIAGE_SYS,TRIAGE_SCHEMA,2048)
   .then(function(r){
     AIRES=r;selType=r.type;draw();
     toast('Gemini classified this as '+r.priority+' — '+TYPES[r.type].n+' ('+Math.round(r.confidence*100)+'% confidence)');
@@ -1635,7 +1635,7 @@ function geminiWhy(id){
     'explain why the nearer option was rejected, and say what would change the answer. '+
     'Cite only figures present in the payload. No preamble, no markdown, no headings. '+
     'Write as a colleague explaining reasoning, not a system justifying itself. The crew can override at any time.',
-    null,400)
+    null,900)
   .then(function(t){if(box) box.innerHTML='<div class="quote"><div class="eyebrow" style="margin-bottom:6px">'+
     'Gemini rationale</div>'+esc(t)+'</div>'})
   .catch(function(e){if(box) box.innerHTML='<p style="font-size:12.5px;color:var(--red)">'+esc(e.message)+'</p>'});
@@ -1654,8 +1654,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSheet()
 
 var KEY='';
 try{KEY=localStorage.getItem('jibon.key')||''}catch(e){}
-var MODEL='gemini-2.5-flash';
-try{MODEL=localStorage.getItem('jibon.model')||'gemini-2.5-flash'}catch(e){}
+/* Google retired the 2.5 models for keys created after mid-2026 (the API
+   returns 404 and points at gemini-3.6-flash), so that is the default now and
+   any 2.5 model still saved in localStorage is migrated on load. */
+var DEFAULT_MODEL='gemini-3.6-flash';
+var MODELS=['gemini-3.6-flash','gemini-3.7-flash','gemini-3.5-flash-lite','gemini-flash-lite-latest'];
+var MODEL=DEFAULT_MODEL;
+try{MODEL=localStorage.getItem('jibon.model')||DEFAULT_MODEL;
+  if(/^gemini-2[.]5/.test(MODEL)){MODEL=DEFAULT_MODEL;localStorage.setItem('jibon.model',MODEL)}}catch(e){}
 
 function hasKey(){return !!(KEY&&KEY.trim())}
 function saveKey(k){KEY=k.trim();try{localStorage.setItem('jibon.key',KEY)}catch(e){}}
@@ -1695,8 +1701,10 @@ var TRIAGE_SYS='You are the intake classifier for JIBON, an emergency coordinati
 
 function gem(parts,sys,schema,maxTok){
   if(!hasKey()) return Promise.reject(new Error('no key'));
+  /* Gemini 3.x flash models think before answering and the thoughts count
+     against maxOutputTokens, so a tiny budget yields an empty reply. Floor it. */
   var body={contents:[{role:'user',parts:parts}],
-    generationConfig:{temperature:schema?0.15:0.5,maxOutputTokens:maxTok||1200}};
+    generationConfig:{temperature:schema?0.15:0.5,maxOutputTokens:Math.max(maxTok||1200,512)}};
   if(sys) body.systemInstruction={parts:[{text:sys}]};
   if(schema){body.generationConfig.responseMimeType='application/json';
     body.generationConfig.responseSchema=schema}
@@ -1708,14 +1716,18 @@ function gem(parts,sys,schema,maxTok){
       var m={400:'Request rejected — check the model name.',
         401:'Key not accepted. Generate a fresh one in AI Studio.',
         403:'Key cannot reach the Gemini API. Enable the Generative Language API.',
-        404:'Model unavailable to this key. Try gemini-2.5-flash.',
+        404:'Model unavailable to this key. Try '+DEFAULT_MODEL+'.',
         429:'Rate limited — wait a moment.',503:'Gemini overloaded.'};
       throw new Error((j.error&&j.error.message)||m[r.status]||('Request failed ('+r.status+')'))});
     return r.json()})
   .then(function(j){
-    var t=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[])
+    var cand=(j.candidates&&j.candidates[0])||{};
+    var t=((cand.content&&cand.content.parts)||[])
       .map(function(p){return p.text||''}).join('').trim();
-    if(!t) throw new Error('Empty response from Gemini.');
+    if(!t){
+      if(cand.finishReason==='MAX_TOKENS') throw new Error('Gemini ran out of output tokens while thinking — try again or pick a flash-lite model.');
+      if(cand.finishReason==='SAFETY') throw new Error('Gemini declined this request (safety filter).');
+      throw new Error('Empty response from Gemini.')}
     if(!schema) return t;
     try{return JSON.parse(t.replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,''))}
     catch(e){var a=t.indexOf('{'),b=t.lastIndexOf('}');
@@ -1799,7 +1811,7 @@ function vAI(){
       '<div style="margin-top:13px"><div class="eyebrow" style="margin-bottom:6px">Model</div>'+
       '<select onchange="MODEL=this.value;try{localStorage.setItem(\'jibon.model\',MODEL)}catch(e){};toast(\'Model set to \'+MODEL)" '+
       'style="width:100%;padding:9px;border:1px solid var(--line2);border-radius:8px;font:inherit">'+
-      ['gemini-2.5-flash','gemini-2.5-pro','gemini-2.5-flash-lite'].map(function(m){
+      MODELS.map(function(m){
         return '<option value="'+m+'"'+(MODEL===m?' selected':'')+'>'+m+'</option>'}).join('')+
       '</select></div></div>'+
 
@@ -1838,7 +1850,7 @@ function testKey(){
   if(!hasKey()){toast('Enter a key first.');return}
   toast('Testing…');
   var t=Date.now();
-  gem([{text:'Reply with the single word: ready'}],null,null,16)
+  gem([{text:'Reply with the single word: ready'}],null,null,256)
     .then(function(){toast('Key works — responded in '+(Date.now()-t)+' ms.');draw()})
     .catch(function(e){toast(e.message)});
 }
@@ -1872,7 +1884,7 @@ function askAI(){
     'something, say precisely what data would be needed. Two to four short paragraphs, direct and specific. '+
     'Never restate the question, never offer further help. You may be asked to draft operational text '+
     '(a dispatch message, a Bangla SMS) — write it directly usable. You are a coordination layer, not a '+
-    'clinician: never diagnose, never name a medication.',null,900)
+    'clinician: never diagnose, never name a medication.',null,1600)
   .then(function(t){ANS=t;draw()})
   .catch(function(e){ANS='';toast(e.message);draw()});
 }
