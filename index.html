@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Nagorik — Civic Signal Intelligence</title>
+<meta name="description" content="Turns unstructured citizen reports into triaged, ranked, auditable civic intelligence using the Gemini API." />
+<meta name="color-scheme" content="dark light" />
+<link rel="icon" href="./assets/mark.svg" type="image/svg+xml" />
+
+<link rel="stylesheet" href="./src/styles/tokens.css" />
+<link rel="stylesheet" href="./src/styles/base.css" />
+<link rel="stylesheet" href="./src/styles/layout.css" />
+<link rel="stylesheet" href="./src/styles/components.css" />
+<link rel="stylesheet" href="./src/styles/views.css" />
+
+<!--
+  The theme is read back before first paint so a reload never flashes the wrong
+  palette. Kept inline and tiny on purpose: it must run before the body renders.
+-->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('nagorik.theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch (e) {
+      /* Private-mode browsers throw on localStorage. Dark default is fine. */
+    }
+  })();
+</script>
+</head>
+<body>
+
+<a class="skip-link" href="#view-root">Skip to content</a>
+
+<div class="app" id="app">
+
+  <!-- ── Rail ─────────────────────────────────────────────────────────── -->
+  <aside class="rail" aria-label="Primary">
+    <a class="rail__brand" href="#/overview" aria-label="Nagorik home">
+      <svg class="rail__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
+        <path d="M12 7.5 16.5 10v4L12 16.5 7.5 14v-4z" fill="currentColor" opacity=".85"/>
+      </svg>
+      <span class="rail__wordmark">
+        <strong>Nagorik</strong>
+        <em>civic signal</em>
+      </span>
+    </a>
+
+    <nav class="rail__nav" id="rail-nav"><!-- rendered by app.js --></nav>
+
+    <div class="rail__foot">
+      <button class="btn btn--ghost btn--block" id="btn-command" type="button">
+        <span>Command</span><kbd>Ctrl</kbd><kbd>K</kbd>
+      </button>
+      <div class="rail__status" id="rail-status" aria-live="polite"></div>
+    </div>
+  </aside>
+
+  <!-- ── Main column ──────────────────────────────────────────────────── -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar__lead">
+        <h1 class="topbar__title" id="view-title">Overview</h1>
+        <p class="topbar__sub" id="view-sub"></p>
+      </div>
+
+      <div class="topbar__actions">
+        <div class="segmented" id="range-picker" role="group" aria-label="Time range"></div>
+        <button class="btn btn--ghost icon-btn" id="btn-theme" type="button" aria-label="Toggle theme" title="Toggle theme">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="btn btn--primary" href="#/intake" id="btn-report">New report</a>
+      </div>
+    </header>
+
+    <main class="view" id="view-root" tabindex="-1"><!-- rendered by the active view --></main>
+  </div>
+</div>
+
+<!-- Overlay surfaces. Kept in the document so their transitions are cheap. -->
+<div class="drawer-scrim" id="drawer-scrim" hidden></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden></aside>
+<div class="modal-scrim" id="modal-scrim" hidden></div>
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<noscript>
+  <div class="noscript">Nagorik is a client-side console and needs JavaScript enabled.</div>
+</noscript>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

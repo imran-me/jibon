@@ -1,0 +1,151 @@
+/*
+  Design tokens.
+  ---------------------------------------------------------------------------
+  The whole console is monochrome plus one brass accent. Status colours are
+  deliberately desaturated so a dashboard full of them still reads calm — they
+  appear as small dots and thin bars, never as large fills.
+
+  Every colour is defined once on :root (dark is the default look) and then
+  re-stated in full for light. No component may hardcode a hex value.
+*/
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────────────────────────── */
+  --bg:            #08090a;
+  --bg-elev:       #0d0f11;
+  --surface:       #111316;
+  --surface-2:     #16191d;
+  --surface-3:     #1c2026;
+  --scrim:         rgba(4, 5, 6, 0.66);
+
+  /* ── Hairlines ────────────────────────────────────────────────────────── */
+  --line:          rgba(255, 255, 255, 0.075);
+  --line-mid:      rgba(255, 255, 255, 0.12);
+  --line-strong:   rgba(255, 255, 255, 0.2);
+
+  /* ── Type ─────────────────────────────────────────────────────────────── */
+  --text:          #eceef0;
+  --text-mid:      #9aa1a9;
+  --text-dim:      #6b727a;
+  --text-faint:    #4c5259;
+
+  /* ── Brand ────────────────────────────────────────────────────────────── */
+  --accent:        #c2a87c;
+  --accent-soft:   rgba(194, 168, 124, 0.14);
+  --accent-line:   rgba(194, 168, 124, 0.42);
+  --on-accent:     #14120d;
+
+  /* ── Status. Used for dots, bars and thin strokes only. ───────────────── */
+  --pos:           #6e9c82;
+  --warn:          #bd8b40;
+  --neg:           #b4655c;
+  --info:          #6c8ba6;
+  --pos-soft:      rgba(110, 156, 130, 0.15);
+  --warn-soft:     rgba(189, 139, 64, 0.15);
+  --neg-soft:      rgba(180, 101, 92, 0.15);
+  --info-soft:     rgba(108, 139, 166, 0.15);
+
+  /*
+    Categorical series for charts. Ordered so the first four stay separable
+    for the most common deuteranopia/protanopia cases — they differ in
+    lightness as well as hue, which is what actually does the work.
+  */
+  --series-1: #c2a87c;
+  --series-2: #6c8ba6;
+  --series-3: #8a7f9e;
+  --series-4: #6e9c82;
+  --series-5: #b4655c;
+  --series-6: #9a8f6a;
+  --series-7: #5f7f86;
+  --series-8: #8c7466;
+
+  /* ── Geometry ─────────────────────────────────────────────────────────── */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* 8px rhythm; anything off-grid is a mistake, not a decision. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  --rail-w: 244px;
+  --topbar-h: 68px;
+  --view-max: 1420px;
+
+  /* ── Type scale ───────────────────────────────────────────────────────── */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Text",
+               "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --t-display: 2.75rem;
+  --t-h1:      1.375rem;
+  --t-h2:      1.0625rem;
+  --t-body:    0.875rem;
+  --t-sm:      0.8125rem;
+  --t-xs:      0.75rem;
+  --t-micro:   0.6875rem;
+
+  /* ── Depth ────────────────────────────────────────────────────────────── */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 24px 64px -16px rgba(0, 0, 0, 0.72);
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --dur-3: 280ms;
+}
+
+[data-theme="light"] {
+  --bg:            #f7f6f3;
+  --bg-elev:       #ffffff;
+  --surface:       #ffffff;
+  --surface-2:     #faf9f7;
+  --surface-3:     #f1efeb;
+  --scrim:         rgba(28, 26, 22, 0.28);
+
+  --line:          rgba(20, 18, 14, 0.09);
+  --line-mid:      rgba(20, 18, 14, 0.15);
+  --line-strong:   rgba(20, 18, 14, 0.26);
+
+  --text:          #16181a;
+  --text-mid:      #5c6167;
+  --text-dim:      #7c828a;
+  --text-faint:    #9aa0a7;
+
+  --accent:        #8a6d38;
+  --accent-soft:   rgba(138, 109, 56, 0.1);
+  --accent-line:   rgba(138, 109, 56, 0.4);
+  --on-accent:     #fffdf8;
+
+  --pos:           #3f6f57;
+  --warn:          #8f6420;
+  --neg:           #9a4841;
+  --info:          #45647e;
+  --pos-soft:      rgba(63, 111, 87, 0.1);
+  --warn-soft:     rgba(143, 100, 32, 0.1);
+  --neg-soft:      rgba(154, 72, 65, 0.1);
+  --info-soft:     rgba(69, 100, 126, 0.1);
+
+  --series-1: #8a6d38;
+  --series-2: #45647e;
+  --series-3: #5f5478;
+  --series-4: #3f6f57;
+  --series-5: #9a4841;
+  --series-6: #6f6438;
+  --series-7: #3d5c62;
+  --series-8: #6b5347;
+
+  --shadow-1: 0 1px 2px rgba(28, 26, 22, 0.06);
+  --shadow-2: 0 8px 24px -10px rgba(28, 26, 22, 0.18);
+  --shadow-3: 0 24px 64px -20px rgba(28, 26, 22, 0.24);
+}

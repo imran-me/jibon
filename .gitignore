@@ -1,0 +1,22 @@
+# API keys live in browser localStorage, never on disk. This is belt-and-braces
+# in case someone drops a local override file while experimenting.
+.env
+.env.*
+*.local
+
+# Local tooling config
+.claude/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Nothing here is built, but keep these out if a tool ever gets run in-tree.
+node_modules/
+dist/
+build/
+__pycache__/
