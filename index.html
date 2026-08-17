@@ -201,6 +201,45 @@ tbody tr:hover{background:var(--tint)}
 .cmp .h{background:var(--tint);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:600}
 .cmp .r{justify-content:flex-end}
 .cmp .win{color:var(--green);font-weight:600}
+/* guided tour bar */
+.tour{display:flex;align-items:flex-start;gap:15px;padding:16px 20px;border-radius:var(--r);
+  background:var(--green);color:#fff;margin-bottom:18px;box-shadow:var(--sh2);animation:in .35s}
+.tour__n{font-size:26px;font-weight:600;line-height:1;flex:none;opacity:.95}
+.tour__n span{font-size:13px;opacity:.6}
+.tour__b{flex:1}
+.tour__t{font-size:16px;font-weight:580;letter-spacing:-.02em;margin-bottom:4px}
+.tour__s{font-size:13px;line-height:1.6;opacity:.93}
+.tour .btn{flex:none;background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.3)}
+.tour .btn:hover{background:rgba(255,255,255,.26)}
+
+/* per-view plain-English strip */
+.help{display:flex;gap:11px;align-items:flex-start;padding:12px 15px;border-radius:9px;
+  background:var(--tint);border:1px solid var(--line);margin-bottom:16px;font-size:12.5px;
+  line-height:1.6;color:var(--mid)}
+.help__i{width:19px;height:19px;border-radius:50%;background:var(--green);color:#fff;
+  display:grid;place-items:center;font-size:11px;font-weight:700;flex:none;margin-top:1px}
+.help b{color:var(--ink)}
+
+/* welcome */
+.wel{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:22px;overflow:auto}
+.wel__b{background:#fff;border-radius:16px;max-width:640px;width:100%;padding:38px;
+  box-shadow:0 30px 80px -20px rgba(0,61,45,.4);animation:in .4s}
+.wel__b h2{font-size:27px;letter-spacing:-.03em;margin:6px 0 18px}
+.wel__lead{font-size:14.5px;line-height:1.75;color:var(--mid);margin-bottom:13px}
+.wel__k{padding:15px;background:var(--tint);border-left:3px solid var(--green);border-radius:9px;
+  font-size:14px;line-height:1.7;color:var(--mid);margin-top:6px}
+.wel__k b{color:var(--ink)}
+
+/* clickable jargon */
+.gl{border-bottom:1px dotted var(--line2);cursor:help}
+.gl:hover{border-bottom-color:var(--green);color:var(--green)}
+
+.big-demo{display:flex;align-items:center;gap:18px;padding:20px 22px;border-radius:var(--r);
+  border:2px solid var(--green);background:linear-gradient(180deg,rgba(0,106,78,.06),transparent);margin-bottom:18px}
+.big-demo h3{font-size:16px;margin-bottom:3px}
+.big-demo p{font-size:12.5px;color:var(--dim)}
+@media(max-width:700px){.big-demo{flex-direction:column;align-items:stretch}
+  .tour{flex-direction:column}}
 @media(max-width:1000px){.g2,.g2e{grid-template-columns:1fr}}
 </style>
 </head>
@@ -447,7 +486,7 @@ function go(v){view=v;nav();draw();window.scrollTo(0,0)}
 function draw(){
   var f={command:vCommand,citizen:vCitizen,patient:vPatient,ambulance:vAmb,
          hospital:vHosp,cases:vCases,analytics:vAnalytics,ai:vAI}[view];
-  $('#app').innerHTML=f();
+  $('#app').innerHTML=tourBar()+helpBar()+f();
 }
 
 /* ── KPI computation ───────────────────────────────────────────────────── */
@@ -530,13 +569,22 @@ function vCommand(){
 }
 
 function demoBox(){
-  return '<div class="card" style="margin-bottom:18px;border-color:var(--green)">'+
+  return '<div class="big-demo">'+
+    '<div style="flex:1"><h3>New here? Start with the guided tour.</h3>'+
+    '<p>It runs a real emergency and walks you through all six screens in 90 seconds, '+
+    'explaining each one as it goes. You can click anything while it plays.</p></div>'+
+    '<div class="row wrap">'+
+      '<button class="btn pri" style="height:42px;padding:0 20px" onclick="startTour()">▶ Guided tour</button>'+
+      '<button class="btn gho" style="height:42px" onclick="runSim(\'unconscious\')">Just run the scenario</button>'+
+    '</div></div>'+
+    '<div class="card" style="margin-bottom:18px">'+
     '<div class="row between wrap">'+
-      '<div><h3>▶ Run a live scenario</h3><div class="sub" style="margin:0">'+
-      'No live emergency infrastructure is connected. These drive a real case record through the real state machine.</div></div>'+
+      '<div><h3>Or pick a scenario yourself</h3><div class="sub" style="margin:0">'+
+      'No real emergency infrastructure is connected — these drive a genuine case record through the '+
+      'genuine state machine, which is what the interfaces react to.</div></div>'+
       '<div class="row wrap">'+
-        '<button class="btn pri" onclick="runSim(\'unconscious\')">Unconscious person — Kuakata</button>'+
-        '<button class="btn gho" onclick="runSim(\'trauma\')">Road accident — Padma Bridge</button>'+
+        '<button class="btn gho" onclick="runSim(\'unconscious\')">🧍 Unconscious person — Kuakata</button>'+
+        '<button class="btn gho" onclick="runSim(\'trauma\')">🚗 Road accident — Padma Bridge</button>'+
       '</div>'+
     '</div></div>';
 }
@@ -823,15 +871,20 @@ function vPatient(){
 function briefRows(c){
   var T=TYPES[c.type];
   var f=c.facts||[['Consciousness','Unresponsive','rep'],['Breathing','Unknown','rep']];
-  var tag={rep:'<span class="tag t-rep">Reported</span>',inf:'<span class="tag t-inf">AI inferred</span>',
-    obs:'<span class="tag t-obs">Observed</span>',ver:'<span class="tag t-ver">Verified</span>'};
+  /* Every clinical line states how it is known. A responder acting on an AI
+     inference has to be able to see that is what it is. */
+  var tag={rep:'<span class="tag t-rep" title="The caller said this">Reported</span>',
+    inf:'<span class="tag t-inf" title="The AI concluded this — not yet confirmed by a person">AI inferred</span>',
+    obs:'<span class="tag t-obs" title="Seen directly in a photo or by a responder">Observed</span>',
+    ver:'<span class="tag t-ver" title="Confirmed by a qualified clinician">Verified</span>'};
   return '<div class="br">'+
     '<span class="k">Emergency ID</span><span class="v mono">'+c.id+'</span>'+
     '<span class="k">Location</span><span class="v">'+esc(c.place)+', '+esc(c.district)+tag.rep+'</span>'+
     '<span class="k">Category</span><span class="v">'+esc(T.n)+(c.verified?tag.ver:tag.inf)+'</span>'+
     '<span class="k">Patients</span><span class="v">'+c.patients+tag.rep+'</span>'+
     f.map(function(x){return '<span class="k">'+esc(x[0])+'</span><span class="v">'+esc(x[1])+(tag[x[2]]||tag.rep)+'</span>'}).join('')+
-    '<span class="k">Clinical window</span><span class="v">'+T.w+' minutes</span>'+
+    '<span class="k"><span class="gl" onclick="gloss(\'window\')">Clinical window</span></span>'+
+    '<span class="v">'+T.w+' minutes<span style="color:var(--dim);font-size:11.5px"> — how long this can safely wait</span></span>'+
     '<span class="k">Receiving dept</span><span class="v">'+esc(T.dept)+'</span>'+
     (c.unit?'<span class="k">Assigned unit</span><span class="v">'+esc(c.unit)+tag.ver+'</span>':'')+
     (c.doc?'<span class="k">Clinician</span><span class="v">'+esc(c.doc)+tag.ver+'</span>':'')+
@@ -1436,8 +1489,129 @@ function askAI(){
   .catch(function(e){ANS='';toast(e.message);draw()});
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   GUIDED TOUR
+   A judge has ninety seconds and no idea which tab matters. Rather than asking
+   them to explore, the tour drives itself: it runs the scenario and moves the
+   screen to whichever interface is doing something at that moment, narrating
+   in plain language. Everything stays clickable throughout.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+var TOUR={on:false,step:0};
+
+var TOUR_STEPS=[
+  {at:0.3,view:'citizen',t:'A bystander in Kuakata opens the app',
+   s:'They are not a doctor. They tap one icon, or just speak — in Bangla, English, or a mix. No forms, no medical words.'},
+  {at:2.2,view:'command',t:'The AI understands in under a second',
+   s:'Speech and photo become a structured case: type, priority, what is known, what is still missing. A 999 operator would still be asking questions here.'},
+  {at:4.4,view:'ambulance',t:'The ambulance is told what to load',
+   s:'Because the emergency is already classified, the crew gets an equipment list before they leave. Today they are dispatched blind and arrive without the one item that mattered.'},
+  {at:7.6,view:'patient',t:'A doctor joins — and reads, not asks',
+   s:'The clinician enters a session that is already briefed. The bystander never repeats themselves. Green tags mean a human has verified what the AI inferred.'},
+  {at:11.6,view:'hospital',t:'Hospitals prepare while the patient is still on the road',
+   s:'This is the core idea. The receiving team gets the case, the ETA and a preparation checklist now — not when the doors open.'},
+  {at:14.4,view:'ambulance',t:'The relay: care rises during the journey',
+   s:'Patuakhali sits on the route to Dhaka. It is told what to have waiting at the roadside and hands up blood and a clinician who continues treatment in the moving vehicle. No new hospital, no new ambulance.'},
+  {at:17.4,view:'analytics',t:'What it adds up to',
+   s:'Same emergencies, same roads. The only difference is that information moved ahead of the patient.'}
+];
+
+function startTour(){
+  closeWelcome();
+  TOUR.on=true;TOUR.step=0;
+  runSim('unconscious');
+  TOUR_STEPS.forEach(function(s,i){
+    SIM.timers.push(setTimeout(function(){
+      if(!TOUR.on)return;
+      TOUR.step=i;view=s.view;nav();draw();window.scrollTo(0,0);
+    },s.at*1000));
+  });
+  SIM.timers.push(setTimeout(function(){TOUR.on=false;draw()},19500));
+}
+function stopTour(){TOUR.on=false;stopSim();draw()}
+
+function tourBar(){
+  if(!TOUR.on)return '';
+  var s=TOUR_STEPS[TOUR.step];
+  return '<div class="tour"><div class="tour__n">'+(TOUR.step+1)+'<span>/'+TOUR_STEPS.length+'</span></div>'+
+    '<div class="tour__b"><div class="tour__t">'+esc(s.t)+'</div>'+
+    '<div class="tour__s">'+esc(s.s)+'</div></div>'+
+    '<button class="btn gho sm" onclick="stopTour()">Exit tour</button></div>';
+}
+
+/* ── Welcome ───────────────────────────────────────────────────────────── */
+function welcome(){
+  var seen=false;try{seen=localStorage.getItem('jibon.seen')==='1'}catch(e){}
+  if(seen)return;
+  $('#ov').innerHTML='<div class="scrim"></div><div class="wel">'+
+    '<div class="wel__b">'+
+      '<div class="eyebrow" style="color:var(--green)">জীবন · JIBON</div>'+
+      '<h2>Emergency Response Intelligence</h2>'+
+      '<p class="wel__lead">Someone collapses in Kuakata. The only person there is a shopkeeper who is not '+
+      'medically trained and does not know who to call.</p>'+
+      '<p class="wel__lead">Today: one blind phone call, an ambulance dispatched without the right equipment, '+
+      'and a hospital that learns about the patient when the doors open. Every handoff throws away what the '+
+      'last link knew — and that is paid in minutes that decide whether the patient lives.</p>'+
+      '<div class="wel__k"><b>The fix is not more ambulances.</b> The resources already exist. '+
+      'What is missing is the information moving fast enough between them.</div>'+
+      '<div class="row wrap" style="margin-top:22px">'+
+        '<button class="btn pri" style="height:44px;padding:0 22px" onclick="startTour()">▶ Watch the 90-second tour</button>'+
+        '<button class="btn gho" style="height:44px" onclick="closeWelcome()">Explore on my own</button>'+
+      '</div>'+
+      '<p style="font-size:11.5px;color:var(--dim);margin-top:14px">The tour drives itself through all six '+
+      'interfaces. Everything stays clickable — you can stop it at any point.</p>'+
+    '</div></div>';
+}
+function closeWelcome(){try{localStorage.setItem('jibon.seen','1')}catch(e){};$('#ov').innerHTML=''}
+function reopenWelcome(){try{localStorage.removeItem('jibon.seen')}catch(e){};welcome()}
+
+/* ── Plain-language help per view ──────────────────────────────────────── */
+var HELP={
+  command:['The duty coordinator\'s screen','Every number here opens the cases behind it — nothing is decoration. '+
+    'Red means immediate threat to life.'],
+  citizen:['What the person at the scene sees','Two seconds to raise an emergency. They tap a picture or speak '+
+    'normally — the AI does the interpreting a frightened bystander cannot.'],
+  patient:['What a doctor sees on joining','The full case, already assembled. Notice the tag on every line: it '+
+    'tells you whether a human confirmed it or the AI inferred it.'],
+  ambulance:['What the crew sees before they arrive','Equipment matched to this specific emergency, and a '+
+    'destination chosen for what it can treat — not for being nearest.'],
+  hospital:['What the receiving hospital sees','The case, the ETA and a preparation checklist while the patient '+
+    'is still on the road. In the conventional system this screen is blank until arrival.'],
+  cases:['The full dataset','132 emergencies. The recent ones ran through JIBON, the older ones through '+
+    'conventional dispatch — which is how the comparison is measured rather than claimed.'],
+  analytics:['Does it actually help?','Computed from the dataset above. Same emergencies, same roads, same traffic.'],
+  ai:['The Gemini layer','Where the intelligence comes from, and what it is allowed to do.']
+};
+
+function helpBar(){
+  var h=HELP[view];if(!h)return '';
+  return '<div class="help"><span class="help__i">?</span><div><b>'+esc(h[0])+'</b> — '+esc(h[1])+'</div></div>';
+}
+
+/* Plain-language glossary. Jargon a judge cannot decode is jargon that costs
+   you the explanation you were about to give. */
+var GLOSS={
+  'P1':'Priority 1 — immediate threat to life. Dispatch now, before anything else.',
+  'P2':'Priority 2 — serious and time-sensitive, but not immediately life-threatening.',
+  'P3':'Priority 3 — needs care, can safely wait behind P1 and P2 cases.',
+  'ALS':'Advanced Life Support — a paramedic crew with a defibrillator, airway kit and cardiac monitoring.',
+  'BLS':'Basic Life Support — transport, oxygen and basic first aid only. No paramedic.',
+  'Trauma':'A trauma-capable unit — immobilisation, bleeding control and advanced life support.',
+  'window':'The clinical window: how long this kind of emergency can wait before survival drops sharply. '+
+    'Cardiac arrest is about 8 minutes. Everything on this screen is measured against it.',
+  'relay':'A hospital that sits on the route. It is told what to have ready at the roadside and hands supplies '+
+    'and a clinician up to the moving ambulance — so treatment escalates during the journey instead of waiting.',
+  'lead':'Pre-arrival lead time: how long the receiving hospital had the case before the patient arrived. '+
+    'In the conventional chain this is zero by definition.'
+};
+function gloss(k){
+  var g=GLOSS[k];if(!g)return;
+  sheet(k==='window'?'Clinical window':k==='relay'?'Relay hospital':k==='lead'?'Pre-arrival lead time':k,
+    'Plain English','<p style="font-size:14px;line-height:1.75;color:var(--mid)">'+esc(g)+'</p>');
+}
+
 /* ── Boot ──────────────────────────────────────────────────────────────── */
-nav();draw();
+nav();draw();welcome();
 </script>
 </body>
 </html>
