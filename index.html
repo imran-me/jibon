@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Nagorik — Civic Signal Intelligence</title>
-<meta name="description" content="Turns unstructured citizen reports into triaged, ranked, auditable civic intelligence using the Gemini API." />
+<title>JIBON — Emergency Response Intelligence</title>
+<meta name="description" content="AI emergency coordination for Bangladesh — classify, route, equip and prepare before the patient arrives." />
 <meta name="color-scheme" content="dark light" />
 <link rel="icon" href="./assets/mark.svg" type="image/svg+xml" />
 
@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="./src/styles/layout.css" />
 <link rel="stylesheet" href="./src/styles/components.css" />
 <link rel="stylesheet" href="./src/styles/views.css" />
+<link rel="stylesheet" href="./src/styles/incident.css" />
 
 <!--
   The theme is read back before first paint so a reload never flashes the wrong
@@ -39,14 +40,14 @@
 
   <!-- ── Rail ─────────────────────────────────────────────────────────── -->
   <aside class="rail" aria-label="Primary">
-    <a class="rail__brand" href="#/overview" aria-label="Nagorik home">
+    <a class="rail__brand" href="#/command" aria-label="JIBON home">
       <svg class="rail__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
         <path d="M12 7.5 16.5 10v4L12 16.5 7.5 14v-4z" fill="currentColor" opacity=".85"/>
       </svg>
       <span class="rail__wordmark">
-        <strong>Nagorik</strong>
-        <em>civic signal</em>
+        <strong>JIBON</strong>
+        <em>emergency response</em>
       </span>
     </a>
 
@@ -64,7 +65,7 @@
   <div class="main">
     <header class="topbar">
       <div class="topbar__lead">
-        <h1 class="topbar__title" id="view-title">Overview</h1>
+        <h1 class="topbar__title" id="view-title">Command Center</h1>
         <p class="topbar__sub" id="view-sub"></p>
       </div>
 
@@ -73,7 +74,7 @@
         <button class="btn btn--ghost icon-btn" id="btn-theme" type="button" aria-label="Toggle theme" title="Toggle theme">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
         </button>
-        <a class="btn btn--primary" href="#/intake" id="btn-report">New report</a>
+        <a class="btn btn--primary" href="#/report" id="btn-report">Report emergency</a>
       </div>
     </header>
 
@@ -88,7 +89,7 @@
 <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
 <noscript>
-  <div class="noscript">Nagorik is a client-side console and needs JavaScript enabled.</div>
+  <div class="noscript">JIBON is a client-side console and needs JavaScript enabled.</div>
 </noscript>
 
 <script type="module" src="./src/app.js"></script>

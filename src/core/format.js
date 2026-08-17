@@ -36,15 +36,36 @@ export function signedPct(value, decimals = 1) {
 }
 
 /**
- * Durations are stored in hours throughout the domain layer, because that is
- * the unit civic SLAs are written in.
+ * Durations are held in minutes throughout the domain layer, because that is
+ * the unit emergency medicine is argued in.
  */
+export function minutes(value) {
+  if (!Number.isFinite(value)) return '—';
+  if (value < 1) return `${Math.round(value * 60)}s`;
+  if (value < 60) return `${value < 10 ? dec(value) : Math.round(value)} min`;
+
+  const wholeHours = Math.floor(value / 60);
+  const rest = Math.round(value % 60);
+  return rest ? `${wholeHours}h ${rest}m` : `${wholeHours}h`;
+}
+
+/** Compact form for axes and chips, where "min" would not fit. */
+export function minutesShort(value) {
+  if (!Number.isFinite(value)) return '—';
+  if (value < 60) return `${Math.round(value)}m`;
+  return `${dec(value / 60)}h`;
+}
+
 export function hours(value) {
   if (!Number.isFinite(value)) return '—';
   if (value < 1) return `${Math.round(value * 60)}m`;
   if (value < 48) return `${value < 10 ? dec(value) : Math.round(value)}h`;
   return `${dec(value / 24)}d`;
 }
+
+/** Clock time for the emergency timeline — always HH:MM, always 24-hour. */
+export const asClock = (ts) =>
+  new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 
 const dayFmt = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' });
 const dayYearFmt = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });

@@ -1,243 +1,312 @@
 /**
- * Analytics engine.
+ * Analytics over the incident set.
  *
- * Pure functions over an array of signals. Nothing here touches the DOM or the
- * store, which means every number on screen can be recomputed — and checked —
- * in isolation. The drill-down drawer relies on this: it re-runs the same
- * functions against a narrowed slice rather than caching pre-baked results.
+ * Pure functions, no DOM and no store access, so every figure on the board can
+ * be recomputed in isolation — which is exactly what the drill-down panels do
+ * when they narrow to a slice. A tile and the panel that explains it always run
+ * the same code over the same rows.
  */
 
 import {
-  CATEGORIES, WARDS, CHANNELS, STATUSES, SEVERITIES,
-  getCategory, isCritical, isOpen, isBreached,
+  EMERGENCY_TYPES, PRIORITIES, STAGES, CHANNELS,
+  getType, getPriority, isCritical,
 } from './taxonomy.js';
+import { FACILITIES, getFacility } from './network.js';
+import {
+  decisionMinutes, responseMinutes, totalMinutes, preArrivalLeadMinutes,
+  isActiveIncident, MODES,
+} from './incidents.js';
 import * as fmt from '../core/format.js';
 
-const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
 /* ── Slicing ──────────────────────────────────────────────────────────────── */
 
-/** Reports created within the last `days` days. */
-export function withinRange(signals, days, now = Date.now()) {
+export function withinRange(incidents, days, now = Date.now()) {
   const cutoff = now - days * DAY;
-  return signals.filter((signal) => signal.createdAt >= cutoff);
+  return incidents.filter((incident) => incident.createdAt >= cutoff);
 }
 
-/** The equivalent window immediately before the current one, for deltas. */
-export function previousRange(signals, days, now = Date.now()) {
+export function previousRange(incidents, days, now = Date.now()) {
   const end = now - days * DAY;
-  const start = end - days * DAY;
-  return signals.filter((signal) => signal.createdAt >= start && signal.createdAt < end);
+  return incidents.filter((incident) => incident.createdAt >= end - days * DAY && incident.createdAt < end);
 }
 
-/** Apply the filter facets plus free-text search. */
-export function applyFilters(signals, filters) {
+export function applyFilters(incidents, filters) {
   const query = (filters.q || '').trim().toLowerCase();
 
-  return signals.filter((signal) => {
-    if (filters.categories?.length && !filters.categories.includes(signal.category)) return false;
-    if (filters.wards?.length && !filters.wards.includes(signal.ward)) return false;
-    if (filters.statuses?.length && !filters.statuses.includes(signal.status)) return false;
-    if (filters.channels?.length && !filters.channels.includes(signal.channel)) return false;
-    if (filters.severities?.length && !filters.severities.includes(signal.severity)) return false;
+  return incidents.filter((incident) => {
+    if (filters.types?.length && !filters.types.includes(incident.type)) return false;
+    if (filters.priorities?.length && !filters.priorities.includes(incident.priority)) return false;
+    if (filters.stages?.length && !filters.stages.includes(incident.stage)) return false;
+    if (filters.channels?.length && !filters.channels.includes(incident.channel)) return false;
+    if (filters.districts?.length && !filters.districts.includes(incident.origin.district)) return false;
+    if (filters.modes?.length && !filters.modes.includes(incident.mode)) return false;
 
     if (query) {
-      const haystack = `${signal.id} ${signal.text} ${signal.place} ${signal.assignee ?? ''}`.toLowerCase();
+      const haystack = [
+        incident.id, incident.narrative, incident.origin.label,
+        incident.assignments.unit, incident.assignments.clinician,
+      ].join(' ').toLowerCase();
       if (!haystack.includes(query)) return false;
     }
     return true;
   });
 }
 
-/** Sort a list by a field, with sensible handling of nulls. */
-export function sortSignals(signals, { key, dir }) {
+/** Sort, with unresolved timings pushed to the end regardless of direction. */
+export function sortIncidents(incidents, { key, dir }) {
   const factor = dir === 'asc' ? 1 : -1;
 
-  return [...signals].sort((a, b) => {
-    let left = a[key];
-    let right = b[key];
-
-    if (key === 'responseHours') {
-      left = responseHours(a);
-      right = responseHours(b);
+  const valueOf = (incident) => {
+    switch (key) {
+      case 'decision': return decisionMinutes(incident);
+      case 'response': return responseMinutes(incident);
+      case 'total': return totalMinutes(incident);
+      case 'priority': return PRIORITIES.findIndex((p) => p.id === incident.priority);
+      case 'stage': return STAGES.find((s) => s.id === incident.stage)?.order ?? 0;
+      case 'type': return getType(incident.type).label;
+      case 'district': return incident.origin.district;
+      default: return incident[key];
     }
+  };
 
-    // Unresolved rows have no response time; park them at the end either way.
+  return [...incidents].sort((a, b) => {
+    const left = valueOf(a);
+    const right = valueOf(b);
     if (left === null || left === undefined) return 1;
     if (right === null || right === undefined) return -1;
-
     if (typeof left === 'string') return left.localeCompare(right) * factor;
     return (left - right) * factor;
   });
 }
 
-/* ── Statistics helpers ───────────────────────────────────────────────────── */
+/* ── Statistics ───────────────────────────────────────────────────────────── */
 
 export function percentile(values, p) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
+  const clean = values.filter(Number.isFinite);
+  if (!clean.length) return null;
+  const sorted = [...clean].sort((a, b) => a - b);
   const rank = (sorted.length - 1) * p;
   const low = Math.floor(rank);
   const high = Math.ceil(rank);
-  if (low === high) return sorted[low];
-  return sorted[low] + (sorted[high] - sorted[low]) * (rank - low);
+  return low === high ? sorted[low] : sorted[low] + (sorted[high] - sorted[low]) * (rank - low);
 }
 
 export const median = (values) => percentile(values, 0.5);
-export const mean = (values) => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : null);
 
-/** Hours from creation to resolution; null while a report is still open. */
-export const responseHours = (signal) =>
-  signal.resolvedAt ? (signal.resolvedAt - signal.createdAt) / HOUR : null;
+export const mean = (values) => {
+  const clean = values.filter(Number.isFinite);
+  return clean.length ? clean.reduce((a, b) => a + b, 0) / clean.length : null;
+};
 
-/** Relative change between two periods; null when the baseline is empty. */
-function change(current, previous) {
-  if (!Number.isFinite(previous) || previous === 0) return null;
-  return (current - previous) / previous;
-}
+const change = (current, previous) =>
+  Number.isFinite(previous) && previous !== 0 && Number.isFinite(current)
+    ? (current - previous) / previous
+    : null;
 
-/* ── Headline metrics ─────────────────────────────────────────────────────── */
+/* ── Core metrics ─────────────────────────────────────────────────────────── */
 
-/**
- * Compute one period's raw metrics. Kept separate from KPI presentation so the
- * same numbers can be reused for the previous period without duplicating logic.
- */
-export function metrics(signals, now = Date.now()) {
-  const resolved = signals.filter((signal) => signal.status === 'resolved');
-  const open = signals.filter(isOpen);
-  const responses = resolved.map(responseHours).filter(Number.isFinite);
-  const breached = signals.filter((signal) => isBreached(signal, now));
-  const duplicates = signals.filter((signal) => signal.duplicateOf);
-  const autoTriaged = signals.filter((signal) => signal.autoTriaged);
+export function metrics(incidents, now = Date.now()) {
+  const active = incidents.filter(isActiveIncident);
+  const transporting = incidents.filter((incident) => incident.stage === 'transporting');
+  const decisions = incidents.map(decisionMinutes);
+  const responses = incidents.map(responseMinutes);
+  const totals = incidents.map(totalMinutes);
+  const leads = incidents.map(preArrivalLeadMinutes);
+  const equipped = incidents.filter((incident) => incident.assignments.equipped);
+  const dispatched = incidents.filter((incident) => incident.dispatchedAt);
+
+  // Facilities currently holding a prepared-but-not-arrived case.
+  const preparing = new Set();
+  for (const incident of active) {
+    for (const [facilityId, state] of Object.entries(incident.prep || {})) {
+      if (state === 'preparing' || state === 'ready' || state === 'notified') preparing.add(facilityId);
+    }
+  }
+
+  const windowValues = incidents
+    .filter((incident) => incident.outcome)
+    .map((incident) => incident.outcome.windowConsumed);
 
   return {
-    total: signals.length,
-    open: open.length,
-    resolved: resolved.length,
-    critical: signals.filter(isCritical).length,
-    criticalOpen: open.filter(isCritical).length,
+    total: incidents.length,
+    active: active.length,
+    critical: incidents.filter(isCritical).length,
+    criticalActive: active.filter(isCritical).length,
+    transporting: transporting.length,
+
+    medianDecision: median(decisions),
     medianResponse: median(responses),
-    p90Response: percentile(responses, 0.9),
-    meanResponse: mean(responses),
-    resolutionRate: signals.length ? resolved.length / signals.length : 0,
-    breachRate: signals.length ? breached.length / signals.length : 0,
-    breached: breached.length,
-    duplicateRate: signals.length ? duplicates.length / signals.length : 0,
-    duplicates: duplicates.length,
-    autoTriageRate: signals.length ? autoTriaged.length / signals.length : 0,
-    meanConfidence: mean(signals.map((signal) => signal.confidence)),
-    reporters: new Set(signals.map((signal) => signal.reporter)).size,
-    backlogHours: median(open.map((signal) => (now - signal.createdAt) / HOUR)),
+    medianTotal: median(totals),
+    p90Total: percentile(totals, 0.9),
+
+    preArrivalLead: mean(leads.filter((value) => value !== null)),
+    facilitiesPreparing: preparing.size,
+    preparingIds: [...preparing],
+
+    cliniciansConnected: new Set(
+      incidents.filter((i) => i.assignments.clinician).map((i) => i.assignments.clinician),
+    ).size,
+    volunteersEngaged: incidents.reduce((sum, i) => sum + (i.assignments.volunteers?.length || 0), 0),
+
+    equipmentMatchRate: dispatched.length ? equipped.length / dispatched.length : 0,
+    meanConfidence: mean(incidents.map((incident) => incident.confidence)),
+    verifiedRate: incidents.length
+      ? incidents.filter((incident) => incident.verifiedBy).length / incidents.length
+      : 0,
+
+    windowConsumed: mean(windowValues),
+    withinWindow: windowValues.length
+      ? windowValues.filter((value) => value <= 1).length / windowValues.length
+      : 0,
+    survivalIndex: mean(incidents.filter((i) => i.outcome).map((i) => i.outcome.survivalIndex)),
+
+    patients: incidents.reduce((sum, incident) => sum + (incident.patients || 1), 0),
   };
 }
 
 /**
- * The eight headline tiles.
+ * Side-by-side comparison of the two coordination modes.
  *
- * `inverse: true` marks metrics where an increase is bad, so the delta chip is
- * coloured by meaning rather than by sign.
+ * This is the impact argument, computed rather than asserted: the same
+ * geography and the same emergencies, differing only in how the information
+ * moved.
  */
-export function buildKpis(signals, allSignals, range, now = Date.now()) {
-  const current = metrics(signals, now);
-  const prior = metrics(previousRange(allSignals, range, now), now);
-  const spark = dailyCounts(signals, range, now).map((point) => point.value);
+export function modeComparison(incidents, now = Date.now()) {
+  const build = (mode) => {
+    const subset = incidents.filter((incident) => incident.mode === mode);
+    const stats = metrics(subset, now);
+    return {
+      mode,
+      label: MODES[mode].label,
+      count: subset.length,
+      decision: stats.medianDecision,
+      response: stats.medianResponse,
+      total: stats.medianTotal,
+      lead: stats.preArrivalLead,
+      equipment: stats.equipmentMatchRate,
+      withinWindow: stats.withinWindow,
+      survival: stats.survivalIndex,
+    };
+  };
 
-  const tile = (config) => ({
-    delta: null,
-    inverse: false,
-    spark,
-    ...config,
-  });
+  const baseline = build('baseline');
+  const jibon = build('jibon');
+
+  return {
+    baseline,
+    jibon,
+    deltas: {
+      decision: change(jibon.decision, baseline.decision),
+      response: change(jibon.response, baseline.response),
+      total: change(jibon.total, baseline.total),
+      equipment: change(jibon.equipment, baseline.equipment),
+      withinWindow: change(jibon.withinWindow, baseline.withinWindow),
+      survival: change(jibon.survival, baseline.survival),
+      /* Minutes, not a ratio — baseline lead time is zero by definition. */
+      leadMinutes: (jibon.lead || 0) - (baseline.lead || 0),
+    },
+  };
+}
+
+/**
+ * The command-centre tiles.
+ *
+ * `inverse: true` marks metrics where an increase is bad, so a green chip always
+ * means "this got better" regardless of which way the number moved.
+ */
+export function buildKpis(incidents, allIncidents, range, now = Date.now()) {
+  const current = metrics(incidents, now);
+  const prior = metrics(applyRangeOnly(allIncidents, range, now), now);
+  const trend = dailyCounts(incidents, range, now).map((point) => point.value);
+
+  const tile = (config) => ({ delta: null, inverse: false, spark: trend, ...config });
 
   return [
     tile({
-      id: 'total',
-      label: 'Total reports',
-      value: current.total,
-      display: fmt.num(current.total),
-      delta: change(current.total, prior.total),
-      hint: `Citizen reports filed in the last ${range} days.`,
-    }),
-    tile({
-      id: 'open',
-      label: 'Open',
-      value: current.open,
-      display: fmt.num(current.open),
-      delta: change(current.open, prior.open),
-      inverse: true,
-      spark: dailyCounts(signals.filter(isOpen), range, now).map((p) => p.value),
-      hint: 'Reports not yet marked resolved, across every stage of triage.',
-    }),
-    tile({
-      id: 'response',
-      label: 'Median response',
-      value: current.medianResponse,
-      display: current.medianResponse === null ? '—' : fmt.hours(current.medianResponse),
-      delta: change(current.medianResponse, prior.medianResponse),
-      inverse: true,
-      hint: 'Middle of the creation-to-resolution distribution for closed reports.',
-    }),
-    tile({
-      id: 'resolution',
-      label: 'Resolution rate',
-      value: current.resolutionRate,
-      display: fmt.pct(current.resolutionRate),
-      delta: change(current.resolutionRate, prior.resolutionRate),
-      hint: 'Share of reports in this window that reached a resolved state.',
+      id: 'active',
+      label: 'Active emergencies',
+      value: current.active,
+      display: fmt.num(current.active),
+      delta: change(current.active, prior.active),
+      hint: 'Cases open right now — reported through to transporting.',
     }),
     tile({
       id: 'critical',
-      label: 'Critical open',
-      value: current.criticalOpen,
-      display: fmt.num(current.criticalOpen),
-      delta: change(current.criticalOpen, prior.criticalOpen),
+      label: 'Critical (P1)',
+      value: current.criticalActive,
+      display: fmt.num(current.criticalActive),
+      delta: change(current.criticalActive, prior.criticalActive),
       inverse: true,
-      spark: dailyCounts(signals.filter(isCritical), range, now).map((p) => p.value),
-      hint: 'Severity 4 and 5 reports still awaiting resolution.',
+      hint: 'Immediate threat to life, still open. These set the dispatch order.',
     }),
     tile({
-      id: 'breach',
-      label: 'SLA breach rate',
-      value: current.breachRate,
-      display: fmt.pct(current.breachRate),
-      delta: change(current.breachRate, prior.breachRate),
+      id: 'transit',
+      label: 'Units in transit',
+      value: current.transporting,
+      display: fmt.num(current.transporting),
+      delta: change(current.transporting, prior.transporting),
+      hint: 'Ambulances currently carrying a patient to a facility.',
+    }),
+    tile({
+      id: 'decision',
+      label: 'Time to dispatch',
+      value: current.medianDecision,
+      display: current.medianDecision === null ? '—' : fmt.minutes(current.medianDecision),
+      delta: change(current.medianDecision, prior.medianDecision),
       inverse: true,
-      hint: 'Reports that passed their category deadline, whether or not they closed.',
+      hint: 'Median from the call being raised to an ambulance being assigned.',
     }),
     tile({
-      id: 'triage',
-      label: 'AI triage coverage',
-      value: current.autoTriageRate,
-      display: fmt.pct(current.autoTriageRate),
-      delta: change(current.autoTriageRate, prior.autoTriageRate),
-      hint: 'Reports classified by the model without a human relabelling them.',
+      id: 'response',
+      label: 'Time to patient',
+      value: current.medianResponse,
+      display: current.medianResponse === null ? '—' : fmt.minutes(current.medianResponse),
+      delta: change(current.medianResponse, prior.medianResponse),
+      inverse: true,
+      hint: 'Median from dispatch to the crew physically reaching the patient.',
     }),
     tile({
-      id: 'duplicates',
-      label: 'Duplicates merged',
-      value: current.duplicates,
-      display: fmt.num(current.duplicates),
-      delta: change(current.duplicates, prior.duplicates),
-      hint: 'Reports folded into an existing case for the same issue and ward.',
+      id: 'preparing',
+      label: 'Hospitals preparing',
+      value: current.facilitiesPreparing,
+      display: fmt.num(current.facilitiesPreparing),
+      delta: change(current.facilitiesPreparing, prior.facilitiesPreparing),
+      hint: 'Facilities that have an inbound case and are readying resources.',
+    }),
+    tile({
+      id: 'lead',
+      label: 'Pre-arrival lead',
+      value: current.preArrivalLead,
+      display: current.preArrivalLead === null ? '—' : fmt.minutes(current.preArrivalLead),
+      delta: change(current.preArrivalLead, prior.preArrivalLead),
+      hint: 'How long the receiving hospital had the case before the patient arrived.',
+    }),
+    tile({
+      id: 'window',
+      label: 'Within clinical window',
+      value: current.withinWindow,
+      display: fmt.pct(current.withinWindow),
+      delta: change(current.withinWindow, prior.withinWindow),
+      hint: 'Share of cases handed over inside the time budget for that emergency.',
     }),
   ];
 }
 
+const applyRangeOnly = (incidents, range, now) => previousRange(incidents, range, now);
+
 /* ── Series ───────────────────────────────────────────────────────────────── */
 
-/** One bucket per day across the window, zero-filled so gaps stay visible. */
-export function dailyCounts(signals, days, now = Date.now()) {
+export function dailyCounts(incidents, days, now = Date.now()) {
   const buckets = new Map();
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
 
-  for (let i = days - 1; i >= 0; i -= 1) {
-    buckets.set(start.getTime() - i * DAY, 0);
-  }
+  for (let i = days - 1; i >= 0; i -= 1) buckets.set(start.getTime() - i * DAY, 0);
 
-  for (const signal of signals) {
-    const day = new Date(signal.createdAt);
+  for (const incident of incidents) {
+    const day = new Date(incident.createdAt);
     day.setHours(0, 0, 0, 0);
     const key = day.getTime();
     if (buckets.has(key)) buckets.set(key, buckets.get(key) + 1);
@@ -246,25 +315,47 @@ export function dailyCounts(signals, days, now = Date.now()) {
   return Array.from(buckets, ([ts, value]) => ({ ts, value }));
 }
 
-/** Daily counts split by a field — the stacked/multi-line trend chart. */
-export function dailyByField(signals, field, days, now = Date.now()) {
-  const keys = distinctValues(field);
-  return keys.map((key) => ({
-    key: key.id,
-    label: key.label,
-    points: dailyCounts(signals.filter((signal) => signal[field] === key.id), days, now),
-  }));
-}
+/** Daily median of a derived timing — used for the response-time trend. */
+export function dailyMedian(incidents, measure, days, now = Date.now()) {
+  const buckets = new Map();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
 
-/** Counts per facet value, richest first, with share of total. */
-export function breakdown(signals, field) {
-  const counts = new Map();
-  for (const signal of signals) {
-    counts.set(signal[field], (counts.get(signal[field]) || 0) + 1);
+  for (let i = days - 1; i >= 0; i -= 1) buckets.set(start.getTime() - i * DAY, []);
+
+  for (const incident of incidents) {
+    const day = new Date(incident.createdAt);
+    day.setHours(0, 0, 0, 0);
+    const key = day.getTime();
+    if (!buckets.has(key)) continue;
+    const value = measure(incident);
+    if (Number.isFinite(value)) buckets.get(key).push(value);
   }
 
-  const total = signals.length || 1;
-  return distinctValues(field)
+  return Array.from(buckets, ([ts, values]) => ({ ts, value: median(values) ?? 0 }));
+}
+
+const OPTIONS = {
+  type: () => EMERGENCY_TYPES.map((item) => ({ id: item.id, label: item.label })),
+  priority: () => PRIORITIES.map((item) => ({ id: item.id, label: `${item.id} · ${item.label}` })),
+  stage: () => STAGES.map((item) => ({ id: item.id, label: item.label })),
+  channel: () => CHANNELS.map((item) => ({ id: item.id, label: item.label })),
+  mode: () => Object.values(MODES).map((item) => ({ id: item.id, label: item.label })),
+  district: (incidents) => [...new Set(incidents.map((i) => i.origin.district))]
+    .sort()
+    .map((district) => ({ id: district, label: district })),
+};
+
+/** Counts per facet value, richest first. */
+export function breakdown(incidents, field) {
+  const read = (incident) => (field === 'district' ? incident.origin.district : incident[field]);
+  const counts = new Map();
+  for (const incident of incidents) counts.set(read(incident), (counts.get(read(incident)) || 0) + 1);
+
+  const total = incidents.length || 1;
+  const options = (OPTIONS[field] || (() => []))(incidents);
+
+  return options
     .map((option) => ({
       id: option.id,
       label: option.label,
@@ -275,194 +366,171 @@ export function breakdown(signals, field) {
     .sort((a, b) => b.value - a.value);
 }
 
-/** The canonical option list for a field, so zero-count values keep their label. */
-function distinctValues(field) {
-  switch (field) {
-    case 'category': return CATEGORIES.map((c) => ({ id: c.id, label: c.label }));
-    case 'ward': return WARDS.map((w) => ({ id: w.id, label: w.label }));
-    case 'channel': return CHANNELS.map((c) => ({ id: c.id, label: c.label }));
-    case 'status': return STATUSES.map((s) => ({ id: s.id, label: s.label }));
-    case 'severity': return SEVERITIES.map((s) => ({ id: s.id, label: `${s.short} · ${s.label}` }));
-    case 'zone': return [{ id: 'North', label: 'Dhaka North' }, { id: 'South', label: 'Dhaka South' }];
-    default: return [];
-  }
-}
-
-/** Reports by hour of day — shows the commute peaks that drive staffing. */
-export function hourHistogram(signals) {
+export function hourHistogram(incidents) {
   const buckets = Array.from({ length: 24 }, (_, hour) => ({ hour, value: 0 }));
-  for (const signal of signals) {
-    buckets[new Date(signal.createdAt).getHours()].value += 1;
-  }
+  for (const incident of incidents) buckets[new Date(incident.createdAt).getHours()].value += 1;
   return buckets;
 }
 
-/** Response-time distribution for resolved reports, in log-ish buckets. */
-export function responseHistogram(signals) {
-  const edges = [0, 2, 6, 12, 24, 48, 96, 168, Infinity];
-  const labels = ['<2h', '2–6h', '6–12h', '12–24h', '1–2d', '2–4d', '4–7d', '7d+'];
-  const buckets = labels.map((label) => ({ label, value: 0 }));
-
-  for (const signal of signals) {
-    const hours = responseHours(signal);
-    if (hours === null) continue;
-    const bucket = edges.findIndex((edge, i) => hours >= edge && hours < edges[i + 1]);
-    if (bucket > -1) buckets[bucket].value += 1;
-  }
-  return buckets;
-}
-
-/** Ward × category grid used by the heat matrix. */
-export function matrix(signals, rowField = 'ward', colField = 'category') {
-  const rows = distinctValues(rowField);
-  const cols = distinctValues(colField);
-  const counts = new Map();
-
-  for (const signal of signals) {
-    const key = `${signal[rowField]}|${signal[colField]}`;
-    counts.set(key, (counts.get(key) || 0) + 1);
-  }
-
-  const cells = rows.map((row) => ({
-    id: row.id,
-    label: row.label,
-    total: 0,
-    cells: cols.map((col) => {
-      const value = counts.get(`${row.id}|${col.id}`) || 0;
-      return { row: row.id, col: col.id, colLabel: col.label, value };
-    }),
-  }));
-
-  for (const row of cells) row.total = row.cells.reduce((sum, cell) => sum + cell.value, 0);
-
-  const max = Math.max(1, ...cells.flatMap((row) => row.cells.map((cell) => cell.value)));
-  return { rows: cells, cols, max };
-}
-
-/** Per-category performance table: volume, median response, breach rate. */
-export function categoryPerformance(signals, now = Date.now()) {
-  return CATEGORIES.map((category) => {
-    const subset = signals.filter((signal) => signal.category === category.id);
+/** Per-type operational performance. */
+export function typePerformance(incidents, now = Date.now()) {
+  return EMERGENCY_TYPES.map((definition) => {
+    const subset = incidents.filter((incident) => incident.type === definition.id);
     const stats = metrics(subset, now);
     return {
-      id: category.id,
-      label: category.label,
-      dept: category.dept,
-      sla: category.sla,
-      total: stats.total,
-      open: stats.open,
+      id: definition.id,
+      label: definition.label,
+      dept: definition.dept,
+      window: definition.window,
+      total: subset.length,
+      active: stats.active,
+      medianDecision: stats.medianDecision,
       medianResponse: stats.medianResponse,
-      resolutionRate: stats.resolutionRate,
-      breachRate: stats.breachRate,
+      medianTotal: stats.medianTotal,
+      withinWindow: stats.withinWindow,
+      equipmentMatch: stats.equipmentMatchRate,
     };
   })
     .filter((row) => row.total > 0)
     .sort((a, b) => b.total - a.total);
 }
 
+/** Facility load: how many cases each hospital is holding or has received. */
+export function facilityLoad(incidents) {
+  return FACILITIES.map((facility) => {
+    const inbound = incidents.filter((incident) => incident.route?.destinationId === facility.id);
+    const relaying = incidents.filter((incident) => incident.route?.relayIds?.includes(facility.id));
+    const active = inbound.filter(isActiveIncident);
+
+    return {
+      id: facility.id,
+      label: facility.name,
+      city: facility.city,
+      tier: facility.tier,
+      value: inbound.length,
+      active: active.length,
+      relays: relaying.length,
+      prepState: active
+        .map((incident) => incident.prep?.[facility.id])
+        .find((state) => state === 'ready' || state === 'preparing') || 'idle',
+    };
+  })
+    .filter((row) => row.value > 0 || row.relays > 0)
+    .sort((a, b) => b.active - a.active || b.value - a.value);
+}
+
 /* ── Narrative ────────────────────────────────────────────────────────────── */
 
 /**
- * Rule-based insights.
- *
- * These are what the Analytics view shows when there is no API key, and they
- * also become the evidence block handed to Gemini when there is one — the model
- * gets pre-computed facts rather than a raw dump, which keeps it from
- * hallucinating totals.
+ * Rule-based findings. These are what the console shows with no API key, and
+ * they are also the evidence handed to Gemini when there is one — the model
+ * receives computed facts rather than raw rows, which is what keeps it from
+ * inventing totals.
  */
-export function deriveInsights(signals, range, now = Date.now()) {
-  const stats = metrics(signals, now);
-  const prior = metrics(previousRange(signals, range, now), now);
+export function deriveInsights(incidents, range, now = Date.now()) {
+  const stats = metrics(incidents, now);
+  const comparison = modeComparison(incidents, now);
   const insights = [];
 
-  const byCategory = breakdown(signals, 'category');
-  const byWard = breakdown(signals, 'ward');
-
-  if (byCategory.length) {
-    const top = byCategory[0];
+  if (comparison.baseline.count && comparison.jibon.count) {
+    const saved = (comparison.baseline.decision ?? 0) - (comparison.jibon.decision ?? 0);
     insights.push(
-      `${top.label} is the largest driver at ${fmt.num(top.value)} reports ` +
-      `(${fmt.pct(top.share)} of volume) over the last ${range} days.`,
+      `Time from call to dispatch fell from ${fmt.minutes(comparison.baseline.decision)} under conventional ` +
+      `handling to ${fmt.minutes(comparison.jibon.decision)} with coordinated triage — ` +
+      `${fmt.minutes(Math.abs(saved))} recovered before an ambulance even moves.`,
+    );
+
+    insights.push(
+      `Receiving hospitals now get the case ${fmt.minutes(comparison.jibon.lead)} before the patient arrives. ` +
+      `In the conventional chain that figure is zero: the hospital learns of the patient at the door.`,
+    );
+
+    insights.push(
+      `Equipment matched to the emergency on dispatch rose from ${fmt.pct(comparison.baseline.equipment)} ` +
+      `to ${fmt.pct(comparison.jibon.equipment)} — the same ambulances, loaded on the basis of a classified case.`,
     );
   }
 
-  if (byWard.length) {
-    const top = byWard[0];
-    const perCapita = byWard
-      .map((row) => ({ ...row, rate: row.value / (WARDS.find((w) => w.id === row.id)?.population || 1) * 100_000 }))
-      .sort((a, b) => b.rate - a.rate)[0];
+  const worst = typePerformance(incidents, now)
+    .filter((row) => Number.isFinite(row.medianTotal))
+    .sort((a, b) => a.withinWindow - b.withinWindow)[0];
 
+  if (worst) {
     insights.push(
-      `${top.label} files the most reports in absolute terms (${fmt.num(top.value)}), ` +
-      `but ${perCapita.label} leads per capita at ${fmt.dec(perCapita.rate)} per 100k residents.`,
+      `${worst.label} is the weakest pathway: only ${fmt.pct(worst.withinWindow)} of cases reach definitive ` +
+      `care inside the ${worst.window}-minute window, against a median end-to-end time of ${fmt.minutes(worst.medianTotal)}.`,
     );
   }
 
-  const slowest = categoryPerformance(signals, now)
-    .filter((row) => Number.isFinite(row.medianResponse))
-    .sort((a, b) => b.breachRate - a.breachRate)[0];
-
-  if (slowest) {
+  const loads = facilityLoad(incidents);
+  if (loads.length) {
     insights.push(
-      `${slowest.label} breaches its ${slowest.sla}h target on ${fmt.pct(slowest.breachRate)} of cases — ` +
-      `the widest gap between promise and delivery. Owner: ${slowest.dept}.`,
-    );
-  }
-
-  const volumeChange = change(stats.total, prior.total);
-  if (volumeChange !== null && Math.abs(volumeChange) > 0.05) {
-    insights.push(
-      `Volume is ${volumeChange > 0 ? 'up' : 'down'} ${fmt.signedPct(volumeChange)} against the previous ` +
-      `${range} days, with median response ${
-        stats.medianResponse < prior.medianResponse ? 'improving' : 'slipping'
-      } to ${fmt.hours(stats.medianResponse)}.`,
-    );
-  }
-
-  if (stats.duplicates > 0) {
-    insights.push(
-      `${fmt.num(stats.duplicates)} reports (${fmt.pct(stats.duplicateRate)}) were folded into existing cases, ` +
-      `saving roughly ${fmt.num(Math.round(stats.duplicates * 0.75))} duplicate site visits.`,
+      `${loads[0].label} carries the heaviest inbound load at ${fmt.num(loads[0].value)} cases, ` +
+      `with ${fmt.num(loads[0].active)} active right now.`,
     );
   }
 
   return insights;
 }
 
-/** Compact, token-cheap summary of the current slice for the model. */
-export function evidencePacket(signals, range, now = Date.now()) {
-  const stats = metrics(signals, now);
+/** Compact packet for the model. Numbers only — no raw patient narratives. */
+export function evidencePacket(incidents, range, now = Date.now()) {
+  const stats = metrics(incidents, now);
+  const comparison = modeComparison(incidents, now);
+
+  const round = (value, digits = 1) => (Number.isFinite(value) ? Number(value.toFixed(digits)) : null);
 
   return {
     window_days: range,
     generated_at: new Date(now).toISOString(),
     totals: {
-      reports: stats.total,
-      open: stats.open,
-      resolved: stats.resolved,
-      critical_open: stats.criticalOpen,
-      unique_reporters: stats.reporters,
+      incidents: stats.total,
+      active: stats.active,
+      critical_active: stats.criticalActive,
+      in_transit: stats.transporting,
+      patients: stats.patients,
+      hospitals_preparing: stats.facilitiesPreparing,
+      clinicians_connected: stats.cliniciansConnected,
+      volunteers_engaged: stats.volunteersEngaged,
     },
-    performance: {
-      median_response_hours: stats.medianResponse === null ? null : Number(stats.medianResponse.toFixed(1)),
-      p90_response_hours: stats.p90Response === null ? null : Number(stats.p90Response.toFixed(1)),
-      resolution_rate: Number(stats.resolutionRate.toFixed(3)),
-      sla_breach_rate: Number(stats.breachRate.toFixed(3)),
-      duplicate_rate: Number(stats.duplicateRate.toFixed(3)),
+    timings_minutes: {
+      median_call_to_dispatch: round(stats.medianDecision),
+      median_dispatch_to_patient: round(stats.medianResponse),
+      median_end_to_end: round(stats.medianTotal),
+      p90_end_to_end: round(stats.p90Total),
+      mean_pre_arrival_lead: round(stats.preArrivalLead),
     },
-    by_category: breakdown(signals, 'category').map((row) => ({
-      category: row.label,
-      count: row.value,
-      share: Number(row.share.toFixed(3)),
-      sla_hours: getCategory(row.id).sla,
-    })),
-    by_ward: breakdown(signals, 'ward').map((row) => ({ ward: row.label, count: row.value })),
-    by_channel: breakdown(signals, 'channel').map((row) => ({ channel: row.label, count: row.value })),
-    category_performance: categoryPerformance(signals, now).map((row) => ({
-      category: row.label,
-      median_response_hours: row.medianResponse === null ? null : Number(row.medianResponse.toFixed(1)),
-      sla_breach_rate: Number(row.breachRate.toFixed(3)),
-      open: row.open,
+    quality: {
+      within_clinical_window: round(stats.withinWindow, 3),
+      equipment_match_rate: round(stats.equipmentMatchRate, 3),
+      mean_ai_confidence: round(stats.meanConfidence, 3),
+      professionally_verified_rate: round(stats.verifiedRate, 3),
+    },
+    mode_comparison: {
+      conventional: {
+        cases: comparison.baseline.count,
+        median_call_to_dispatch: round(comparison.baseline.decision),
+        median_end_to_end: round(comparison.baseline.total),
+        pre_arrival_lead: round(comparison.baseline.lead),
+        equipment_match_rate: round(comparison.baseline.equipment, 3),
+        within_window: round(comparison.baseline.withinWindow, 3),
+      },
+      coordinated: {
+        cases: comparison.jibon.count,
+        median_call_to_dispatch: round(comparison.jibon.decision),
+        median_end_to_end: round(comparison.jibon.total),
+        pre_arrival_lead: round(comparison.jibon.lead),
+        equipment_match_rate: round(comparison.jibon.equipment, 3),
+        within_window: round(comparison.jibon.withinWindow, 3),
+      },
+    },
+    by_type: breakdown(incidents, 'type').map((row) => ({ type: row.label, count: row.value })),
+    by_priority: breakdown(incidents, 'priority').map((row) => ({ priority: row.label, count: row.value })),
+    by_district: breakdown(incidents, 'district').map((row) => ({ district: row.label, count: row.value })),
+    facility_load: facilityLoad(incidents).slice(0, 6).map((row) => ({
+      facility: row.label, inbound: row.value, active: row.active, relay_cases: row.relays,
     })),
   };
 }
+
+export { decisionMinutes, responseMinutes, totalMinutes, preArrivalLeadMinutes, getFacility };
