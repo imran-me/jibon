@@ -120,6 +120,19 @@ main{max-width:1400px;margin:0 auto;padding:24px}
 .t-inf{background:rgba(178,106,0,.13);color:var(--amber)}
 .t-obs{background:rgba(42,107,143,.12);color:var(--blue)}
 .t-ver{background:rgba(0,106,78,.12);color:var(--green)}
+.t-req{background:rgba(244,42,65,.1);color:var(--red)}
+.consent{font-size:11px;color:var(--dim);margin:-4px 0 10px;line-height:1.5}
+.pipe{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 0;border-bottom:1px solid var(--line)}
+.pipe:last-of-type{border-bottom:none}
+.pipe .pl{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);font-weight:600;width:96px;flex:none}
+.pipe .stp{padding:5px 10px;border:1px solid var(--line2);border-radius:6px;font-size:12px;color:var(--mid);background:#fff}
+.pipe .stp.slow{border-color:rgba(178,106,0,.5);color:var(--amber);background:rgba(178,106,0,.06)}
+.pipe.on .stp{border-color:rgba(0,106,78,.45);color:var(--green);background:rgba(0,106,78,.05);font-weight:520}
+.pipe .arw{color:var(--dim);font-size:11px}
+.hero{margin-top:16px;padding:18px 20px;border-radius:9px;background:var(--ink);color:#fff;font-size:17px;font-weight:520;letter-spacing:-.015em;line-height:1.4}
+.hero span{display:block;font-size:12px;color:#9fb5ad;margin-top:6px;font-weight:400;letter-spacing:0}
+.legend{font-size:10.5px;color:var(--dim);display:flex;gap:9px;align-items:center}
+.legend .dot{margin-right:3px}
 .quote{padding:12px;background:var(--tint);border-left:3px solid var(--green);
   border-radius:7px;font-size:13px;line-height:1.65}
 .warnbox{padding:12px;border:1px dashed var(--amber);background:rgba(178,106,0,.06);
@@ -495,7 +508,7 @@ function makeCase(minsAgo,mode){
     lead: jib?Math.round(transit*0.8+scene):0,
     say:pick(SAYS[t]||SAYS.other),
     prep: jib?(done?'Received':(rnd()<0.5?'Team ready':'Preparing')):'Not notified',
-    tl:null,sim:false
+    tl:null,sim:false,verified:jib&&minsAgo>dec+3
   };
 }
 /* Last 7 days coordinated, the 3 weeks before it conventional — so the
@@ -521,6 +534,9 @@ function clock(ts){var d=new Date(ts);
   return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)}
 function pct(x){return Math.round(x*100)+'%'}
 function priCls(p){return p==='P1'?'p1':p==='P2'?'p2':'p3'}
+function prepCls(p){return p==='Team ready'||p==='Received'?'ok':p==='Preparing'?'p2':'nu'}
+function gps(c){var g=GEO[c.district]||GEO.Dhaka,n=parseInt(String(c.id).slice(4),10)||0;
+  return (g[0]+((n%7)-3)*0.004).toFixed(4)+'\u00b0 N, '+(g[1]+((n%5)-2)*0.004).toFixed(4)+'\u00b0 E'}
 function priColor(p){return p==='P1'?'var(--red)':p==='P2'?'var(--amber)':'var(--blue)'}
 function active(c){return c.stage!=='Closed'}
 function jib(){return CASES.filter(function(c){return c.mode==='jibon'})}
@@ -612,9 +628,10 @@ function vCommand(){
   kpiHTML()+
   '<div class="grid g2" style="margin-top:14px">'+
     '<div class="card"><h3>Active emergencies</h3><div class="sub">Ordered by priority, then by how long they have waited — click any case</div>'+
-      (act.length?act.slice(0,9).map(caseHTML).join(''):'<p style="color:var(--dim);padding:24px;text-align:center">No active emergencies.</p>')+
+      (act.length?act.slice(0,12).map(caseHTML).join(''):'<p style="color:var(--dim);padding:24px;text-align:center">No active emergencies.</p>')+
     '</div>'+
     '<div style="display:flex;flex-direction:column;gap:14px">'+
+      netMap()+
       '<div class="card"><h3>Conventional vs JIBON</h3><div class="sub">Same emergencies, same roads — measured on this dataset</div>'+
         '<div class="cmp"><div class="h">Metric</div><div class="h r">Conventional</div><div class="h r">JIBON</div>'+
         rows.map(function(r){return '<div>'+esc(r[0])+'</div><div class="r num" style="color:var(--dim)">'+esc(r[2])+'</div>'+
@@ -710,12 +727,13 @@ function runSim(type){
       log(c,'Destination set — '+HOSP[c.dest].n,
         c.relays.length?'Relay prepared at '+c.relays.map(function(h){return HOSP[h].c}).join(' and '):'Direct transfer','ai')}],
     [3.2,'Ambulance dispatched with a matched equipment manifest',function(){
-      c.stage='Dispatched';c.dec=0.8;c.unit=type==='trauma'?'TRA-118':'ALS-142';
+      c.stage='Dispatched';c.dec=0.8;c.unit=type==='trauma'?'TRA-118':'ALS-142';c.prep='Notified';
       log(c,'Ambulance '+c.unit+' dispatched','Loaded for '+TYPES[type].n.toLowerCase()+' — manifest sent before departure','amb')}],
     [4.4,'Emergency physician joined the open session',function(){
       c.doc='Dr. N. Akter';
       log(c,'Dr. N. Akter joined the session','Read the brief on entry — no re-interview of the caller','doc')}],
     [5.4,'Bystander receiving guided first aid',function(){
+      c.actions=['Guided first aid started by the bystander'];
       log(c,'First-aid guidance started','Doctor guiding the bystander through the protocol on the open line','doc')}],
     [6.4,'Nearby trained volunteer notified',function(){
       c.vol='H. Sultana (off-duty nurse)';
@@ -725,10 +743,10 @@ function runSim(type){
       log(c,'Case verified by Dr. N. Akter','AI inferences confirmed by a qualified clinician','doc')}],
     [8.8,'Volunteer reached the patient before the ambulance',function(){
       c.facts[1]=['Breathing',type==='trauma'?'Laboured':'Agonal / gasping','ver'];
-      c.missing=c.missing.slice(1);
+      c.missing=c.missing.slice(1);(c.actions=c.actions||[]).push('Breathing check completed on scene');
       log(c,'Volunteer reached the patient','Breathing confirmed from the scene — brief updated','vol')}],
     [10.2,'Crew on scene, treatment started',function(){
-      c.stage='On scene';c.resp=14;
+      c.stage='On scene';c.resp=14;(c.actions=c.actions||[]).push('Crew treatment started \u2014 airway, oxygen, monitoring');
       log(c,'Crew reached the patient','Arrived with the equipment this case actually needed','amb')}],
     [11.6,'Patient loaded, transport begun',function(){
       c.stage='Transporting';c.scene=7;c.prep='Preparing';
@@ -743,7 +761,7 @@ function runSim(type){
       c.prep='Team ready';
       log(c,HOSP[c.dest].n+' — team ready',TYPES[type].dept+' standing by, theatre and blood confirmed','hos')}],
     [17.2,'Handover complete — treatment began at the door',function(){
-      c.stage='Transporting';c.prep='Received';c.lead=46;c.transit=52;c.total=74;
+      c.stage='Handed over';c.prep='Received';c.lead=46;c.transit=52;c.total=74;
       log(c,'Handed over at '+HOSP[c.dest].n,'Team already assembled — assessment did not restart','hos');
       SIM.on=false;toast('Scenario complete. Hospital had the case 46 minutes before arrival.')}]
   ];
@@ -833,6 +851,7 @@ function vCitizen(){
       '<div class="card"><h3>Or just speak</h3>'+
       '<div class="sub">Bangla, English or a mix — say it the way you would to a neighbour. '+
       'You do not have to structure it.</div>'+
+      '<p class="consent">Microphone and camera switch on only when you tap them and off when you let go. Speech is transcribed on this device; nothing is stored on a server.</p>'+
       '<button class="mic btn gho" style="width:100%;height:46px;margin-bottom:11px" onclick="mic(this)">🎤 Hold to speak</button>'+
       '<textarea id="say" rows="3" style="width:100%;padding:11px;border:1px solid var(--line2);'+
       'border-radius:8px;font:inherit;resize:vertical" placeholder="Uni pore gechen, sara dicchen na…">'+
@@ -1264,10 +1283,12 @@ function briefRows(c){
   var tag={rep:'<span class="tag t-rep" title="The caller said this">Reported</span>',
     inf:'<span class="tag t-inf" title="The AI concluded this — not yet confirmed by a person">AI inferred</span>',
     obs:'<span class="tag t-obs" title="Seen directly in a photo or by a responder">Observed</span>',
-    ver:'<span class="tag t-ver" title="Confirmed by a qualified clinician">Verified</span>'};
+    ver:'<span class="tag t-ver" title="Confirmed by a qualified clinician">Verified</span>',
+    req:'<span class="tag t-req" title="No qualified person has confirmed this yet">Needs confirmation</span>'};
   return '<div class="br">'+
     '<span class="k">Emergency ID</span><span class="v mono">'+c.id+'</span>'+
     '<span class="k">Location</span><span class="v">'+esc(c.place)+', '+esc(c.district)+tag.rep+'</span>'+
+    '<span class="k">GPS</span><span class="v mono" style="font-size:12px">'+gps(c)+tag.obs+'</span>'+
     '<span class="k">Category</span><span class="v">'+esc(T.n)+(c.verified?tag.ver:tag.inf)+'</span>'+
     '<span class="k">Patients</span><span class="v">'+c.patients+tag.rep+'</span>'+
     f.map(function(x){return '<span class="k">'+esc(x[0])+'</span><span class="v">'+esc(x[1])+(tag[x[2]]||tag.rep)+'</span>'}).join('')+
@@ -1277,6 +1298,10 @@ function briefRows(c){
     (c.unit?'<span class="k">Assigned unit</span><span class="v">'+esc(c.unit)+tag.ver+'</span>':'')+
     (c.doc?'<span class="k">Clinician</span><span class="v">'+esc(c.doc)+tag.ver+'</span>':'')+
     (c.vol?'<span class="k">Volunteer</span><span class="v">'+esc(c.vol)+tag.ver+'</span>':'')+
+    (c.actions&&c.actions.length?'<span class="k">Actions performed</span><span class="v">'+esc(c.actions.join(' \u00b7 '))+tag.ver+'</span>':'')+
+    '<span class="k">Ambulance need</span><span class="v">'+esc(T.cap)+' unit \u00b7 '+(KIT[c.type]||KIT.other).filter(function(k){return k[1]}).length+' critical items'+tag.inf+'</span>'+
+    '<span class="k">Hospital prep</span><span class="v">'+esc(HOSP[c.dest].c)+' \u2014 '+esc(c.prep)+(c.prep==='Team ready'||c.prep==='Received'?tag.ver:c.mode==='jibon'?tag.req:tag.rep)+'</span>'+
+    '<span class="k">Verification</span><span class="v">'+(c.verified?'Verified by '+esc(c.doc||'clinician')+tag.ver:'Awaiting clinician'+tag.req)+'</span>'+
     '</div>';
 }
 
@@ -1308,7 +1333,7 @@ function vAmb(){
       '<div><div class="eyebrow">Assigned unit</div><h3 style="font-size:19px;margin-top:3px">'+esc(c.unit||'ALS-142')+'</h3></div>'+
       '<span class="pill '+priCls(c.pri)+'">'+c.pri+'</span></div>'+
       '<div class="stats">'+
-      st('Emergency',T.n)+st('Patients',c.patients)+st('Window',T.w+' min')+st('Tier',T.cap)+'</div>'+
+      st('Emergency',T.n)+st('Patients',c.patients)+st('Window',T.w+' min')+st('Tier',T.cap)+st('ETA',mins(c.transit||52),'to '+HOSP[c.dest].c)+st('Hospital',c.prep)+'</div>'+
       '<div style="margin-top:16px"><div class="eyebrow" style="margin-bottom:9px">Equipment manifest — confirm before departure</div>'+
       (KIT[c.type]||KIT.other).map(function(k,i){
         return '<label class="row" style="padding:6px 0;font-size:13px;cursor:pointer">'+
@@ -1342,7 +1367,7 @@ function routeHTML(c){
     '<button class="node" data-k="dest" onclick="openHosp(\''+c.dest+'\')"><span class="ic">🏥</span>'+
     '<span style="flex:1"><span class="nm">'+esc(HOSP[c.dest].n)+'</span>'+
     '<span class="ns">'+esc(HOSP[c.dest].c)+' · definitive care</span></span>'+
-    '<span class="pill '+(c.prep==='Team ready'||c.prep==='Received'?'ok':c.prep==='Preparing'?'p2':'nu')+'">'+esc(c.prep)+'</span></button>'+
+    '<span class="pill '+prepCls(c.prep)+'">'+esc(c.prep)+'</span></button>'+
     '<button class="btn gho sm" style="margin-top:12px" onclick="whyHosp(\''+c.id+'\')">✨ Why this hospital?</button>';
   return h;
 }
@@ -1370,7 +1395,7 @@ function vHosp(){
         '<div class="row between"><span class="row" style="gap:7px">'+
         '<span class="pill '+priCls(c.pri)+'">'+c.pri+'</span>'+
         '<button style="font-size:13px;font-weight:520;color:var(--green)" onclick="openCase(\''+c.id+'\')">'+esc(TYPES[c.type].n)+'</button></span>'+
-        '<span class="pill '+(c.prep==='Team ready'||c.prep==='Received'?'ok':'p2')+'">'+esc(c.prep)+'</span></div>'+
+        '<span class="pill '+prepCls(c.prep)+'">'+esc(c.prep)+'</span></div>'+
         '<div style="font-size:11px;color:var(--dim);margin:6px 0 9px">'+c.id+' · '+c.patients+
         ' patient'+(c.patients>1?'s':'')+' · ETA '+mins(c.transit||45)+' · '+esc(TYPES[c.type].dept)+'</div>'+
         '<div class="eyebrow" style="margin-bottom:5px">Prepare now</div>'+
@@ -1463,6 +1488,12 @@ function vAnalytics(){
       '<span class="bt meter"><i style="width:'+(t[1]/mx*100)+'%;background:var(--green)"></i></span></button>'}).join('')+
     '</div></div>'+
   '</div>'+
+  '<div class="card" style="margin-top:14px"><h3>Two pipelines, one emergency</h3>'+
+  '<div class="sub">Amber steps are time spent recovering information that already existed somewhere in the chain</div>'+
+  pipe('Conventional',['Emergency','Call','Explain','Dispatch','Arrive','Assess','Hospital learns','Prepare','Treat'],['Explain','Assess','Hospital learns','Prepare'],false)+
+  pipe('JIBON',['Emergency','AI understands','Right people connected','Resources prepared','Ambulance en route','Hospital preparing','Patient arrives','Treatment begins'],[],true)+
+  '<div class="hero">Don\'t wait for the patient to arrive before preparing for the patient.'+
+  '<span>Every minute before treatment matters.</span></div></div>'+
   '<div class="card" style="margin-top:14px;border-left:3px solid var(--green)">'+
   '<h3>What we can honestly claim</h3>'+
   '<p style="font-size:13px;color:var(--mid);line-height:1.7;margin-top:8px">'+
@@ -1474,6 +1505,9 @@ function vAnalytics(){
   'None of it requires a new ambulance, a new theatre or a new doctor. '+
   '<b>The resources already exist — only the information was missing.</b></p></div>';
 }
+
+function pipe(label,steps,slow,on){return '<div class="pipe'+(on?' on':'')+'"><span class="pl">'+esc(label)+'</span>'+
+  steps.map(function(x,i){return (i?'<span class="arw">\u2192</span>':'')+'<span class="stp'+(slow.indexOf(x)>=0?' slow':'')+'">'+esc(x)+'</span>'}).join('')+'</div>'}
 
 /* ── Drill-downs: no number is a dead end ──────────────────────────────── */
 /* keep=true updates an already-open sheet in place (no re-mount, so the
@@ -1790,6 +1824,34 @@ function mapSVG(c){
     '</svg>';
 }
 
+/* Every active case and every facility on one schematic; a case pulses while
+   a scenario is driving it. Same projection as the route map. */
+function netMap(){
+  var act=CASES.filter(active),seen={},cities={};
+  var dots=act.map(function(c){var g=GEO[c.district]||GEO.Dhaka,q=xy(g[0],g[1]);
+    var n=seen[c.district]=(seen[c.district]||0)+1,a=n*2.1,r=n>1?7+(n%3)*3:0;
+    var x=(q[0]+Math.cos(a)*r).toFixed(1),y=(q[1]+Math.sin(a)*r).toFixed(1),col=priColor(c.pri);
+    return '<g style="cursor:pointer" onclick="openCase(\''+c.id+'\')"><title>'+esc(c.id+' \u00b7 '+TYPES[c.type].n+' \u00b7 '+c.stage)+'</title>'+
+      (c.sim?'<circle cx="'+x+'" cy="'+y+'" r="8" fill="none" stroke="'+col+'" stroke-width="1.4">'+
+        '<animate attributeName="r" from="6" to="16" dur="1.4s" repeatCount="indefinite"/>'+
+        '<animate attributeName="opacity" from=".9" to="0" dur="1.4s" repeatCount="indefinite"/></circle>':'')+
+      '<circle cx="'+x+'" cy="'+y+'" r="5" fill="'+col+'" stroke="#fff" stroke-width="1.5"/></g>'}).join('');
+  var hosp=Object.keys(HOSP).map(function(k){var g=GEO[HOSP[k].c];if(!g)return '';var q=xy(g[0],g[1]);
+    var n=cities[HOSP[k].c]=(cities[HOSP[k].c]||0)+1,x=q[0]-4+(n-1)*11,y=q[1]+9;
+    return '<g style="cursor:pointer" onclick="openHosp(\''+k+'\')"><title>'+esc(HOSP[k].n)+'</title>'+
+      '<rect x="'+x+'" y="'+y+'" width="8" height="8" rx="1.5" fill="#fff" stroke="var(--green)" stroke-width="1.5"/></g>'}).join('');
+  return '<div class="card"><div class="row between" style="align-items:flex-start"><div><h3>Network map</h3>'+
+    '<div class="sub">Active cases by priority \u2014 click a case or a facility</div></div>'+
+    '<span class="legend"><span><span class="dot" style="color:var(--red)"></span>P1</span>'+
+    '<span><span class="dot" style="color:var(--amber)"></span>P2</span>'+
+    '<span><span class="dot" style="color:var(--blue)"></span>P3</span>'+
+    '<span><span style="display:inline-block;width:7px;height:7px;border:1.5px solid var(--green);border-radius:2px;margin-right:3px;vertical-align:-1px"></span>Facility</span></span></div>'+
+    '<svg viewBox="0 0 340 290" style="width:100%;height:auto;background:var(--tint);border-radius:9px">'+
+    Object.keys(GEO).map(function(k){var q=xy(GEO[k][0],GEO[k][1]);
+      return '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="2" fill="#cfdad6"/><text x="'+(q[0]+6)+'" y="'+(q[1]+3)+'" font-size="7.5" fill="#9aa8a3">'+esc(k)+'</text>'}).join('')+
+    hosp+dots+'</svg></div>';
+}
+
 /* ── View: AI console ──────────────────────────────────────────────────── */
 var ASK='',ANS='';
 function vAI(){
@@ -1824,7 +1886,18 @@ function vAI(){
         '<div style="font-size:13px;font-weight:530">'+esc(x[0])+'</div>'+
         '<div style="font-size:12px;color:var(--dim);margin-top:2px">'+esc(x[1])+'</div></div>'}).join('')+
       '</div>'+
-    '</div>'+
+          '<div class="card"><h3>Privacy &amp; safety</h3><div class="sub">Emergency medical information is sensitive. What this build enforces</div>'+
+      [['Consent','Microphone and camera activate only on an explicit tap and stop on release.'],
+       ['Role-based views','Citizen, clinician, crew and hospital each see a different slice; a volunteer gets only type and location.'],
+       ['Minimum sharing','A relay hospital receives what it needs to prepare \u2014 not the whole record.'],
+       ['Audit trail','Every transition is timestamped in the case timeline with the actor who made it.'],
+       ['Retention','No server. Cases live in this browser only and can be cleared at any time.'],
+       ['AI limits','The model classifies and drafts; a clinician verifies before anything is acted on. It never diagnoses or names a medication.']].map(function(x){
+        return '<div style="padding:8px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:110px 1fr;gap:10px">'+
+        '<div style="font-size:12px;font-weight:560">'+esc(x[0])+'</div>'+
+        '<div style="font-size:12px;color:var(--mid)">'+esc(x[1])+'</div></div>'}).join('')+
+      '<button class="btn gho sm" style="margin-top:12px" onclick="clearLocal()">Clear local data</button></div>'+
+'</div>'+
 
     '<div class="card"><h3>Ask the live case data</h3>'+
     '<div class="sub">Grounded on computed statistics — the model receives figures, so it cannot invent a total</div>'+
@@ -1845,6 +1918,8 @@ function vAI(){
   '</div>';
 }
 
+function clearLocal(){try{localStorage.removeItem('jibon.key');localStorage.removeItem('jibon.model')}catch(e){}
+  KEY='';MODEL='gemini-2.5-flash';toast('Local data cleared \u2014 key and preferences removed from this browser.');draw()}
 function testKey(){
   saveKey($('#k').value);
   if(!hasKey()){toast('Enter a key first.');return}
